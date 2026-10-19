@@ -216,8 +216,6 @@ jobs:
             exit 0
           fi
 
-          git tag -f latest "${GITHUB_SHA}"
-          git push --force origin refs/tags/latest
           notes_file="${RUNNER_TEMP}/latest-release-notes.md"
           cat > "${notes_file}" <<EOF
           ${DEFAULT_BRANCH} 分支最近一次通过全部检查的持续构建。
@@ -225,6 +223,11 @@ jobs:
           - Commit: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
           - 运行依赖：Git，以及支持 JSON 输出的 difftastic（difft）。
           EOF
+          echo >> "${notes_file}"
+          bash .github/scripts/release-binary-sizes.sh "${RELEASE_ASSET_DIR}" >> "${notes_file}"
+
+          git tag -f latest "${GITHUB_SHA}"
+          git push --force origin refs/tags/latest
 
           if gh release view latest > /dev/null 2>&1; then
             gh release edit latest --title latest --notes-file "${notes_file}" --prerelease --latest=false
