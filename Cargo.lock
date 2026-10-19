@@ -710,7 +710,7 @@ version = "0.8.3"
 source = "git+https://github.com/DCjanus/wezterm.git?branch=feat%2Fupstream-termwiz-default-color-probe#99f4cc31a3724dc0e90460f7682670b79197a0d7"
 dependencies = [
  "libc",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "windows-sys 0.61.2",
 ]
 
@@ -867,7 +867,7 @@ dependencies = [
  "regex",
  "signal-hook 0.4.5",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -908,7 +908,7 @@ dependencies = [
  "gix-trace",
  "kstring",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "unicode-bom",
 ]
 
@@ -938,7 +938,7 @@ dependencies = [
  "gix-traverse",
  "gix-worktree",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -992,7 +992,7 @@ dependencies = [
  "gix-sec",
  "memchr",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "unicode-bom",
  "winnow 0.7.15",
 ]
@@ -1007,7 +1007,7 @@ dependencies = [
  "bstr",
  "gix-path",
  "libc",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1025,7 +1025,7 @@ dependencies = [
  "gix-sec",
  "gix-trace",
  "gix-url",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1063,7 +1063,7 @@ dependencies = [
  "gix-worktree",
  "imara-diff 0.1.8",
  "imara-diff 0.2.0",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1083,7 +1083,7 @@ dependencies = [
  "gix-trace",
  "gix-utils",
  "gix-worktree",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1098,7 +1098,7 @@ dependencies = [
  "gix-path",
  "gix-ref",
  "gix-sec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1127,7 +1127,7 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "prodash",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "walkdir",
  "zlib-rs",
 ]
@@ -1150,7 +1150,7 @@ dependencies = [
  "gix-trace",
  "gix-utils",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1164,7 +1164,7 @@ dependencies = [
  "gix-features",
  "gix-path",
  "gix-utils",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1188,7 +1188,7 @@ dependencies = [
  "faster-hex",
  "gix-features",
  "sha1-checked",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1240,7 +1240,7 @@ dependencies = [
  "memmap2",
  "rustix",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1251,7 +1251,7 @@ checksum = "054fbd0989700c69dc5aa80bc66944f05df1e15aa7391a9e42aca7366337905f"
 dependencies = [
  "gix-tempfile",
  "gix-utils",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1289,7 +1289,7 @@ dependencies = [
  "gix-worktree",
  "imara-diff 0.1.8",
  "nonempty",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1323,7 +1323,7 @@ dependencies = [
  "gix-validate",
  "itoa",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "winnow 0.7.15",
 ]
 
@@ -1344,7 +1344,7 @@ dependencies = [
  "gix-quote",
  "parking_lot",
  "tempfile",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1363,7 +1363,7 @@ dependencies = [
  "gix-path",
  "memmap2",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "uluru",
 ]
 
@@ -1376,7 +1376,7 @@ dependencies = [
  "bstr",
  "faster-hex",
  "gix-trace",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1388,7 +1388,7 @@ dependencies = [
  "bstr",
  "gix-trace",
  "gix-validate",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1403,7 +1403,7 @@ dependencies = [
  "gix-config-value",
  "gix-glob",
  "gix-path",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1416,7 +1416,7 @@ dependencies = [
  "gix-config-value",
  "parking_lot",
  "rustix",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1435,7 +1435,7 @@ dependencies = [
  "gix-utils",
  "maybe-async",
  "nonempty",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "winnow 0.7.15",
 ]
 
@@ -1467,7 +1467,7 @@ dependencies = [
  "gix-utils",
  "gix-validate",
  "memmap2",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "winnow 0.7.15",
 ]
 
@@ -1484,7 +1484,7 @@ dependencies = [
  "gix-revision",
  "gix-validate",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1519,7 +1519,7 @@ dependencies = [
  "gix-hashtable",
  "gix-object",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1544,7 +1544,7 @@ dependencies = [
  "gix-hash",
  "gix-lock",
  "nonempty",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1567,7 +1567,7 @@ dependencies = [
  "gix-pathspec",
  "gix-worktree",
  "portable-atomic",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1582,7 +1582,7 @@ dependencies = [
  "gix-pathspec",
  "gix-refspec",
  "gix-url",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1619,7 +1619,7 @@ dependencies = [
  "gix-quote",
  "gix-sec",
  "gix-url",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1636,7 +1636,7 @@ dependencies = [
  "gix-object",
  "gix-revwalk",
  "smallvec",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1648,7 +1648,7 @@ dependencies = [
  "bstr",
  "gix-path",
  "percent-encoding",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1704,7 +1704,7 @@ dependencies = [
  "gix-path",
  "gix-worktree",
  "io-close",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2063,7 +2063,7 @@ checksum = "bde5057d6143cc94e861d90f591b9303d6716c6b9602309150bd068853c10899"
 dependencies = [
  "hashbrown 0.16.1",
  "portable-atomic",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2815,7 +2815,7 @@ dependencies = [
  "kasuari",
  "lru",
  "strum",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "unicode-segmentation",
  "unicode-truncate",
  "unicode-width 0.2.2",
@@ -3012,10 +3012,11 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.151"
+version = "1.0.154"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+checksum = "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
 dependencies = [
+ "foldhash 0.2.0",
  "indexmap",
  "itoa",
  "memchr",
@@ -3127,7 +3128,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "unicode-segmentation",
  "unicode-width 0.2.2",
  "vt100",
@@ -3414,7 +3415,7 @@ dependencies = [
  "siphasher",
  "terminfo",
  "termios",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "ucd-trie",
  "unicode-segmentation",
  "vtparse 0.7.0",
@@ -3451,11 +3452,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.18"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
+checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
 dependencies = [
- "thiserror-impl 2.0.18",
+ "thiserror-impl 2.0.21",
 ]
 
 [[package]]
@@ -3471,13 +3472,13 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.18"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
+checksum = "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.117",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -3805,7 +3806,7 @@ checksum = "0ce02900ff89b5a17054d4be0f4cb9a9ba3fbb6c02c72cc76fb86bf14a6e6f6a"
 dependencies = [
  "regex",
  "streaming-iterator",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "tree-sitter",
 ]
 
@@ -5198,7 +5199,7 @@ source = "git+https://github.com/DCjanus/wezterm.git?branch=feat%2Fupstream-term
 dependencies = [
  "getrandom 0.3.4",
  "sha2",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "uuid",
 ]
 
@@ -5270,7 +5271,7 @@ dependencies = [
  "log",
  "ordered-float",
  "strsim",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "wezterm-dynamic-derive 0.1.1 (git+https://github.com/DCjanus/wezterm.git?branch=feat%2Fupstream-termwiz-default-color-probe)",
 ]
 
@@ -5310,7 +5311,7 @@ dependencies = [
  "pest",
  "pest_derive",
  "sha2",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
  "vtparse 0.7.0",
  "wezterm-blob-leases 0.1.1 (git+https://github.com/DCjanus/wezterm.git?branch=feat%2Fupstream-termwiz-default-color-probe)",
  "wezterm-color-types 0.3.0 (git+https://github.com/DCjanus/wezterm.git?branch=feat%2Fupstream-termwiz-default-color-probe)",
