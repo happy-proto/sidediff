@@ -1,5 +1,10 @@
 # sidediff
 
+[![CI](https://img.shields.io/github/actions/workflow/status/happy-proto/sidediff/ci.yml?event=pull_request&label=CI)](https://github.com/happy-proto/sidediff/actions/workflows/ci.yml)
+[![Release](https://github.com/happy-proto/sidediff/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/happy-proto/sidediff/actions/workflows/release.yml)
+[![依赖状态](https://deps.rs/repo/github/happy-proto/sidediff/status.svg)](https://deps.rs/repo/github/happy-proto/sidediff)
+[![License](https://img.shields.io/github/license/happy-proto/sidediff)](LICENSE)
+
 一个只读的 Git 差异终端界面，用于浏览当前工作区、暂存区和历史提交的左右差异。
 
 [difftastic](https://github.com/Wilfred/difftastic) 生成结构化差异，[kat](https://github.com/happy-proto/kat) 提供语法高亮与嵌套区域背景。`kat` 编入程序；运行时仍需外部 `git` 和 `difft`。
