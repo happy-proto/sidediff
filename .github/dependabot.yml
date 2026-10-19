@@ -23,4 +23,5 @@ updates:
     groups:
       compatible-updates:
         patterns: ["*"]
+        exclude-patterns: [mozilla-actions/sccache-action]
         update-types: [minor, patch]
