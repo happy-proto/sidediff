@@ -15,6 +15,10 @@ Git 路径在访问、比较与去重时保留原始字节；不可解码字节�
 
 [completion.rs](../src/completion.rs) 使用 gix 查询 revision 和路径，注册机制使用 clap_complete 的动态 API。它在普通参数解析和终端输出之前运行。
 
+kat 使用 [kat-parsers](https://github.com/happy-proto/kat-parsers) 统一提供预生成 parser 和按语言首次加载的表解压。普通 Cargo 构建自动使用压缩产物；sidediff 仅通过锁文件更新 kat 及其传递依赖。上游 grammar、scanner 和许可证的批量同步与重新生成由 kat-parsers 集中维护。
+
+库自身的锁文件不会传播到应用。直接与间接 Git revision 由 [同一可复用工作流](https://github.com/happy-proto/kat-parsers/blob/ed250ac26790ab7d041e1edacd17adce5ce4cb96/docs/git-dependencies.md) 定时批量更新，本仓库只保留调用入口。更新分支会显式运行 CI，并在执行摘要提供创建 PR 的链接。
+
 ## 分层验证
 
 | 边界 | 职责 | 验证方式 |

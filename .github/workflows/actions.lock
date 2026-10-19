@@ -19,6 +19,7 @@ workflows:
         - 'ilammy/msvc-dev-cmd@v1'
         - 'jdx/mise-action@v5'
         - 'mozilla-actions/sccache-action@v0.0.11'
+    '.github/workflows/sync-git-dependencies.yml': []
 dependencies:
     'actions/cache@v6':
         ref: 'v6'
