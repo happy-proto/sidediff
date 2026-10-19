@@ -33,11 +33,7 @@ fn run() -> Result<()> {
     request.worktree_root = worktree_root;
     let invocation_dir = std::env::current_dir()?;
     if cli.diff.relative.as_deref() == Some("") {
-        request.relative_root = Some(
-            invocation_dir
-                .strip_prefix(&request.worktree_root)?
-                .to_path_buf(),
-        );
+        request.relative_root = Some(git_diff::invocation_prefix()?);
     }
     request.invocation_dir = Some(invocation_dir);
     app::run(request, tab_width)

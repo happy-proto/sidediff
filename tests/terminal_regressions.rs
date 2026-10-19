@@ -195,17 +195,36 @@ impl Session {
     }
 
     fn wait_for(&mut self, text: &str) -> String {
-        let deadline = Instant::now() + Duration::from_secs(5);
+        self.wait_for_with_timeout(text, Duration::from_secs(5))
+    }
+
+    fn screen_contents(&self) -> String {
+        // 保留物理行边界；ConPTY 的自动折行不能改变屏幕坐标。
+        self.screen
+            .rows(0, self.screen.size().1)
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn wait_for_with_timeout(&mut self, text: &str, timeout: Duration) -> String {
+        let deadline = Instant::now() + timeout;
         while Instant::now() < deadline {
-            if let Ok((chunk, screen)) = self.rx.recv_timeout(Duration::from_millis(20)) {
-                self.screen = screen;
-                self.output.extend(chunk);
-            }
-            let screen = self.screen.contents();
+            let received =
+                if let Ok((chunk, screen)) = self.rx.recv_timeout(Duration::from_millis(20)) {
+                    self.screen = screen;
+                    self.output.extend(chunk);
+                    true
+                } else {
+                    false
+                };
+            let screen = self.screen_contents();
             if screen.contains(text) {
                 return screen;
             }
-            if let Some(status) = self.child.try_wait().unwrap() {
+            // 进程退出后先读完排队的终端输出，避免只留下截断的错误前缀。
+            if let Some(status) = self.child.try_wait().unwrap()
+                && !received
+            {
                 panic!(
                     "sidediff exited {status:?} before showing {text:?}:\n{}",
                     String::from_utf8_lossy(&self.output)
@@ -214,7 +233,7 @@ impl Session {
         }
         panic!(
             "did not show {text:?}:\n{}\nraw:\n{}",
-            self.screen.contents(),
+            self.screen_contents(),
             String::from_utf8_lossy(&self.output)
         );
     }
@@ -762,7 +781,8 @@ fn selected_file_at_bottom_remains_visible_in_the_sidebar() {
         );
     }
     let mut session = repo.start(&[]);
-    session.wait_for("CONTENT_00");
+    // 此场景启动 40 次 difft；给批量加载留出预算，导航仍使用常规等待时间。
+    session.wait_for_with_timeout("CONTENT_00", Duration::from_secs(20));
     session.send(b"G");
     let screen = session.wait_for("CONTENT_39");
     let sidebar = screen

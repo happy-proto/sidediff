@@ -59,10 +59,18 @@ impl DiffRequest {
 }
 
 pub fn ensure_git_repo() -> Result<PathBuf> {
+    rev_parse_path("--show-toplevel")
+}
+
+pub fn invocation_prefix() -> Result<PathBuf> {
+    rev_parse_path("--show-prefix")
+}
+
+fn rev_parse_path(option: &str) -> Result<PathBuf> {
     let output = Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
+        .args(["rev-parse", option])
         .output()
-        .context("failed to run `git rev-parse`")?;
+        .with_context(|| format!("failed to run `git rev-parse {option}`"))?;
 
     if !output.status.success() {
         return Err(AppError::NotGitRepository.into());
