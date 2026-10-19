@@ -6,6 +6,13 @@ workflows:
     '.github/workflows/ci.yml':
         - 'actions/cache@v6'
         - 'actions/checkout@v7'
+        - 'actions/upload-artifact@v7'
+        - 'dtolnay/rust-toolchain@stable'
+        - 'jdx/mise-action@v5'
+        - 'mozilla-actions/sccache-action@v0.0.11'
+    '.github/workflows/release.yml':
+        - 'actions/cache@v6'
+        - 'actions/checkout@v7'
         - 'actions/download-artifact@v8'
         - 'actions/upload-artifact@v7'
         - 'dtolnay/rust-toolchain@stable'

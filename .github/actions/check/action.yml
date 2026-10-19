@@ -1,0 +1,56 @@
+name: 项目检查
+description: 校验格式、Clippy 和 Actions lock，并运行终端回归
+inputs:
+  ghostty-e2e:
+    description: 同时执行 Ghostty 终端端到端测试
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy, rustfmt
+    - uses: mozilla-actions/sccache-action@v0.0.11
+      id: sccache
+    - name: 恢复 sccache 编译缓存
+      uses: actions/cache@v6
+      with:
+        path: ${{ env.SCCACHE_DIR }}
+        key: sccache-v1-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          sccache-v1-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('Cargo.lock') }}-
+          sccache-v1-${{ runner.os }}-${{ runner.arch }}-test-
+    - uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
+        key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+        restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
+    - uses: jdx/mise-action@v5
+    - uses: $/.github/actions/setup-difft
+      with:
+        target: x86_64-unknown-linux-gnu
+        sha256: 61aea5394a53c56f144637cf39b3a0c0dafa27769731745e5851ff276e6478da
+    - name: 格式、Clippy 与 Actions lock 检查
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: mise run check
+    - name: 常规测试（含 PTY 回归）
+      shell: bash
+      run: mise run test
+    - name: Ghostty 终端端到端测试
+      if: inputs.ghostty-e2e == 'true'
+      shell: bash
+      run: mise run ghostty-e2e
+    - name: 保存 sccache 统计
+      if: always() && steps.sccache.outcome == 'success'
+      shell: bash
+      run: sccache --show-stats --stats-format=json > "${RUNNER_TEMP}/sccache-stats.json"
+    - uses: actions/upload-artifact@v7
+      if: always() && steps.sccache.outcome == 'success'
+      with:
+        name: sccache-test
+        path: ${{ runner.temp }}/sccache-stats.json
