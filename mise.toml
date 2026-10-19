@@ -11,12 +11,12 @@ description = "检查格式、Clippy 和 Actions 锁文件，不执行测试"
 run = [
   "cargo fmt --check",
   "cargo clippy --locked --all-targets -- -D warnings",
-  "gh-actions-lock .github/workflows/ci.yml --verify",
+  "gh-actions-lock --verify",
 ]
 
 [tasks.actions-lock-update]
 description = "更新 GitHub Actions 原生锁文件"
-run = "gh-actions-lock .github/workflows/ci.yml --no-narrow"
+run = "gh-actions-lock --no-narrow"
 
 [tasks.test]
 description = "运行常规测试与真实终端回归"
