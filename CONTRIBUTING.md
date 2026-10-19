@@ -11,10 +11,11 @@
 
 ```sh
 mise install
-mise run precommit
+mise run check
+mise run test
 ```
 
-`mise run precommit` 依次检查格式、Clippy 和常规测试，不会自动修改源码。也可单独运行 `mise run fmtcheck`、`mise run lint`。构建与安装使用锁文件：
+提交前分别运行 `mise run check` 和 `mise run test`：前者检查格式、Clippy 与 Actions 锁文件，后者执行常规测试。构建与安装使用锁文件：
 
 ```sh
 cargo build --release --locked
@@ -49,7 +50,7 @@ PR 和 merge queue 的合并组运行 Actions lock 校验、格式检查、Clipp
 
 ```sh
 mise run actions-lock-update
-mise run actions-lock
+mise run check
 ```
 
 依赖维护由 [Dependabot](.github/dependabot.yml) 每周提出更新。零主版本依赖的 minor 变更单独审查，不与普通兼容更新混在一起。

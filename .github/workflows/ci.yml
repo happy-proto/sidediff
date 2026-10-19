@@ -43,16 +43,16 @@ jobs:
           key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
       - uses: jdx/mise-action@v5
-      - name: 校验 Actions lock
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: mise run actions-lock
       - uses: $/.github/actions/setup-difft
         with:
           target: x86_64-unknown-linux-gnu
           sha256: 61aea5394a53c56f144637cf39b3a0c0dafa27769731745e5851ff276e6478da
-      - name: 提交检查（含 PTY 回归）
-        run: mise run precommit
+      - name: 格式、Clippy 与 Actions lock 检查
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: mise run check
+      - name: 常规测试（含 PTY 回归）
+        run: mise run test
       - name: Ghostty 终端端到端测试
         if: github.ref_name == github.event.repository.default_branch
         run: mise run ghostty-e2e
