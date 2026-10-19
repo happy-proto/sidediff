@@ -19,7 +19,7 @@ env:
   CARGO_INCREMENTAL: "0"
   # 逐对象访问 GHA 后端会触发限流；磁盘缓存由 actions/cache 批量同步。
   SCCACHE_GHA_ENABLED: "false"
-  SCCACHE_DIR: ${{ github.workspace }}/../sccache
+  SCCACHE_DIR: ${{ github.workspace }}/.sccache
   SCCACHE_CACHE_SIZE: 2G
 
 jobs:
