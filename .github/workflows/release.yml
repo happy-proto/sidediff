@@ -38,7 +38,6 @@ jobs:
     name: build (${{ matrix.target }})
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
     timeout-minutes: 45
-    needs: test
     runs-on: ${{ matrix.runner }}
     env:
       RUSTC_WRAPPER: sccache
@@ -189,7 +188,7 @@ jobs:
     name: release latest
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
     timeout-minutes: 10
-    needs: build
+    needs: [test, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
