@@ -1,5 +1,7 @@
 [tools]
 "cargo:cargo-nextest" = "0.9.148"
+gh = "2.102.0"
+"github:github/gh-actions-lock" = { version = "0.2.0", bin = "gh-actions-lock" }
 
 [settings]
 activate_aggressive = true
@@ -9,8 +11,12 @@ description = "依次检查格式、Clippy 和常规回归"
 run = [{ task = "fmtcheck" }, { task = "lint" }, { task = "test" }]
 
 [tasks.actions-lock]
-description = "在线校验 GitHub Actions 原生锁文件（需 gh-actions-lock 扩展）"
-run = "gh actions-lock .github/workflows/ci.yml --verify"
+description = "在线校验 GitHub Actions 原生锁文件"
+run = "gh-actions-lock .github/workflows/ci.yml --verify"
+
+[tasks.actions-lock-update]
+description = "更新 GitHub Actions 原生锁文件"
+run = "gh-actions-lock .github/workflows/ci.yml --no-narrow"
 
 [tasks.fmtcheck]
 description = "检查 Rust 格式，不修改源码"

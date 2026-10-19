@@ -43,10 +43,6 @@ jobs:
           key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
       - uses: jdx/mise-action@v5
-      - name: 安装 Actions lock 校验工具
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh extension install github/gh-actions-lock --pin v0.2.0
       - name: 校验 Actions lock
         env:
           GH_TOKEN: ${{ github.token }}
