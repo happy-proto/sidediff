@@ -2188,7 +2188,7 @@ dependencies = [
 [[package]]
 name = "kat"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat.git#467f74c62539c9ef8a252708b137a66f94976fbf"
+source = "git+https://github.com/happy-proto/kat.git#68d066750e41f1e7068cec94728b82f9864e5ce6"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -2270,7 +2270,7 @@ dependencies = [
 [[package]]
 name = "kat-parser-common"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "cc",
 ]
@@ -4007,7 +4007,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-actionscript"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4016,7 +4016,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-apache"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4025,7 +4025,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-applescript"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4034,7 +4034,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-asciidoc"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4043,7 +4043,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-asm"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4052,7 +4052,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-authorized-keys"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4061,7 +4061,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-awk"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4070,7 +4070,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-bibtex"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4079,7 +4079,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-cabal"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4088,7 +4088,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-cmakecache"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4097,7 +4097,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-coffeescript"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4106,7 +4106,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-command-help"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4115,7 +4115,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-cpuinfo"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4124,7 +4124,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-crontab"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4133,7 +4133,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-crystal"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4142,7 +4142,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-css"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4151,7 +4151,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-csv"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4160,7 +4160,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-debsources"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4169,7 +4169,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-dockerfile"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4178,7 +4178,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-dot"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4187,7 +4187,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-dotenv"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4196,7 +4196,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-email"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4205,7 +4205,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-fish"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4214,7 +4214,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-fortran-namelist"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4223,7 +4223,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-fstab"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4232,7 +4232,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-ghostty"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4241,7 +4241,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-git-commit"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4250,7 +4250,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-git-config"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4259,7 +4259,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-git-link"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4268,7 +4268,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-git-log"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4277,7 +4277,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-git-mailmap"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4286,7 +4286,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-git-rebase"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4295,7 +4295,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-gitattributes"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4304,7 +4304,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-gomod"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4313,7 +4313,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-gosum"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4322,7 +4322,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-gowork"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4331,7 +4331,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-graph-easy"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4340,7 +4340,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-graphql"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4349,7 +4349,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-hcl"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4358,7 +4358,16 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-ignore"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
+dependencies = [
+ "kat-parser-common",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-kat-jam"
+version = "0.1.0"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4367,7 +4376,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-jinja"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4376,7 +4385,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-jq"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4385,7 +4394,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-just"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4394,7 +4403,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-known-hosts"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4403,7 +4412,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-latex"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4412,7 +4421,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-less"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4421,7 +4430,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-markdown"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4430,7 +4439,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-markdown-inline"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4439,7 +4448,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-mermaid"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4448,7 +4457,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-nasm"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4457,7 +4466,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-ninja"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4466,7 +4475,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-parsers"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "tree-sitter-kat-actionscript",
  "tree-sitter-kat-apache",
@@ -4508,6 +4517,7 @@ dependencies = [
  "tree-sitter-kat-graphql",
  "tree-sitter-kat-hcl",
  "tree-sitter-kat-ignore",
+ "tree-sitter-kat-jam",
  "tree-sitter-kat-jinja",
  "tree-sitter-kat-jq",
  "tree-sitter-kat-just",
@@ -4547,7 +4557,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-proto"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4556,7 +4566,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-query"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4565,7 +4575,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-requirements"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4574,7 +4584,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-sass"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4583,7 +4593,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-scss"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4592,7 +4602,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-sml"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4601,7 +4611,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-ssh-config"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4610,7 +4620,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-strace"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4619,7 +4629,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-stylus"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4628,7 +4638,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-svelte"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4637,7 +4647,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-syslog"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4646,7 +4656,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-tcl"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4655,7 +4665,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-textile"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4664,7 +4674,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-textproto"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4673,7 +4683,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-todotxt"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4682,7 +4692,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-tsv"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4691,7 +4701,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-twig"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4700,7 +4710,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-typst"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4709,7 +4719,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-userscript-metadata"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4718,7 +4728,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-vimhelp"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4727,7 +4737,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-vue"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4736,7 +4746,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-vyper"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
@@ -4745,7 +4755,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kat-wgsl"
 version = "0.1.0"
-source = "git+https://github.com/happy-proto/kat-parsers#9458dc9ef02d8e56156ea19cf001ae14d92a1caf"
+source = "git+https://github.com/happy-proto/kat-parsers#f0af1a8fc691bae01ea3c6d9e7588c0faee2ab54"
 dependencies = [
  "kat-parser-common",
  "tree-sitter-language",
