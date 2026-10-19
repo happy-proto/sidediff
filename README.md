@@ -84,6 +84,6 @@ Fish：`COMPLETE=fish sidediff | source`。升级程序后重新加载注册钩�
 
 ## 开发
 
-开发任务统一由 [mise.toml](mise.toml) 管理：`mise run precommit` 执行提交检查，`mise run test` 运行常规回归，`mise run ghostty-e2e` 运行颜色回归，`mise run install` 从源码安装。
+开发任务统一由 [mise.toml](mise.toml) 管理：`mise run check` 检查格式、Clippy 与 Actions 锁文件，`mise run test` 运行常规回归，`mise run ghostty-e2e` 运行颜色回归，`mise run install` 从源码安装。
 
 环境、端到端回归与提交检查见 [CONTRIBUTING.md](CONTRIBUTING.md)；数据流和当前边界见 [架构说明](docs/architecture.md)。本项目使用 [MIT License](LICENSE)。
