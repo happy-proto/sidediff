@@ -47,6 +47,20 @@ mise run ghostty-e2e
 
 ## 工作流与发布
 
-CI 对默认分支、PR 和 merge queue 的合并组执行检查，并为发布目标生成归档。PR 通过 merge queue 合入；`latest` 仅由默认分支验证成功的提交更新。四个平台的支持情况以各平台真实 CI 结果为准，本机测试通过不表示其他平台已经验证。
+PR 和 merge queue 的合并组运行 Actions lock 校验、格式检查、Clippy 与常规测试（含 PTY 回归）。默认分支额外执行 Ghostty 颜色回归、四个平台的 release 构建、发布二进制回归及打包，全部通过后更新 `latest`。PR 通过 merge queue 合入，必需检查为 `test`。
+
+CI 使用 sccache 缓存 Rust 与 parser 的 C/C++ 编译结果，Cargo registry/Git 下载另行缓存；每个编译 job 输出命中统计并上传 JSON 明细。本地仍沿用现有 Cargo/mbx 配置。
+
+### Actions lock
+
+第三方 action 保留兼容范围引用，实际提交由 GitHub 原生 [actions.lock](.github/workflows/actions.lock) 锁定。使用官方扩展生成，不手工编辑锁文件：
+
+```sh
+gh extension install github/gh-actions-lock
+gh actions-lock .github/workflows/ci.yml --no-narrow
+mise run actions-lock
+```
+
+新增或修改 `uses` 时同步生成锁文件。本地 action 使用工具迁移后的 `$/` 引用；保留旧 `./` 引用会使工具跳过整个 workflow。确认移动引用的上游变化后，使用同一命令追加 `--relock` 刷新；普通生成会保留已有锁定。Dependabot 负责已接入 workflow 的版本更新及对应锁定。
 
 依赖维护由 [Dependabot](.github/dependabot.yml) 每周提出更新。零主版本依赖的 minor 变更单独审查，不与普通兼容更新混在一起。
