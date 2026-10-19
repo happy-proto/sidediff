@@ -200,6 +200,9 @@ jobs:
           pattern: sidediff-release-package-*
           path: ${{ runner.temp }}/latest-release-assets
           merge-multiple: true
+      - uses: jdx/mise-action@v5
+        with:
+          install_args: uv
       - name: 更新 latest tag 和 Release
         shell: bash
         env:
@@ -224,7 +227,7 @@ jobs:
           - 运行依赖：Git，以及支持 JSON 输出的 difftastic（difft）。
           EOF
           echo >> "${notes_file}"
-          bash .github/scripts/release-binary-sizes.sh "${RELEASE_ASSET_DIR}" >> "${notes_file}"
+          .github/scripts/release-binary-sizes.py "${RELEASE_ASSET_DIR}" >> "${notes_file}"
 
           git tag -f latest "${GITHUB_SHA}"
           git push --force origin refs/tags/latest
