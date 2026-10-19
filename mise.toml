@@ -1,20 +1,22 @@
 [tools]
 "cargo:cargo-nextest" = "0.9.148"
+gh = "2.102.0"
+"github:github/gh-actions-lock" = { version = "0.2.0", bin = "gh-actions-lock" }
 
 [settings]
 activate_aggressive = true
 
-[tasks.precommit]
-description = "依次检查格式、Clippy 和常规回归"
-run = [{ task = "fmtcheck" }, { task = "lint" }, { task = "test" }]
+[tasks.check]
+description = "检查格式、Clippy 和 Actions 锁文件，不执行测试"
+run = [
+  "cargo fmt --check",
+  "cargo clippy --locked --all-targets -- -D warnings",
+  "gh-actions-lock .github/workflows/ci.yml --verify",
+]
 
-[tasks.fmtcheck]
-description = "检查 Rust 格式，不修改源码"
-run = "cargo fmt --check"
-
-[tasks.lint]
-description = "运行 Clippy，拒绝警告"
-run = "cargo clippy --locked --all-targets -- -D warnings"
+[tasks.actions-lock-update]
+description = "更新 GitHub Actions 原生锁文件"
+run = "gh-actions-lock .github/workflows/ci.yml --no-narrow"
 
 [tasks.test]
 description = "运行常规测试与真实终端回归"

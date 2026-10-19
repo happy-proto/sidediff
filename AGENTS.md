@@ -18,5 +18,5 @@
 - 常规测试遵循仓库 [mise.toml](mise.toml)，使用 `mise run test`；不要自行拼凑 `nextest` 参数，也不要无故改用 `cargo test` 跑全量测试。
 - 默认命令：`cargo nextest run --config-file .config/nextest.toml --cargo-quiet --status-level fail --final-status-level fail --failure-output final --success-output never --show-progress none --no-tests pass`。
 - 单个测试的超时与宽限期由 [`.config/nextest.toml`](.config/nextest.toml) 统一配置；当前为 1 分钟、宽限期 `0s`。
-- 提交检查使用 `mise run precommit`，依次运行格式检查、Clippy 和常规测试。
+- 提交前分别运行 `mise run check`（格式、Clippy 与 Actions 锁文件）和 `mise run test`；`check` 不执行测试。
 - Ghostty 终端端到端测试使用 `mise run ghostty-e2e`，依赖本地 `difft`、Git 和该任务声明的 Zig 工具链。

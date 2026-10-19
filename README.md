@@ -14,13 +14,13 @@
 cargo install --path . --locked
 ```
 
-首次发布后，可用 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) 安装 `latest` 构建：
+使用 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) 安装 `latest` 预编译包：
 
 ```sh
 cargo binstall --git https://github.com/happy-proto/sidediff sidediff
 ```
 
-滚动构建可能保留相同包版本；重新下载同版本时加 `--force`。发布矩阵包含 Linux x64（glibc）、macOS Apple Silicon、Windows x64 和 Windows ARM64；资产规则见 [CI](.github/workflows/ci.yml) 与 [Cargo.toml](Cargo.toml)。
+预编译包支持 Linux x64（glibc）、macOS Apple Silicon、Windows x64 和 Windows ARM64。同版本重新安装时加 `--force`。
 
 ## 使用
 
@@ -84,6 +84,6 @@ Fish：`COMPLETE=fish sidediff | source`。升级程序后重新加载注册钩�
 
 ## 开发
 
-开发任务统一由 [mise.toml](mise.toml) 管理：`mise run precommit` 执行提交检查，`mise run test` 运行常规回归，`mise run ghostty-e2e` 运行颜色回归，`mise run install` 从源码安装。
+开发任务统一由 [mise.toml](mise.toml) 管理：`mise run check` 检查格式、Clippy 与 Actions 锁文件，`mise run test` 运行常规回归，`mise run ghostty-e2e` 运行颜色回归，`mise run install` 从源码安装。
 
 环境、端到端回归与提交检查见 [CONTRIBUTING.md](CONTRIBUTING.md)；数据流和当前边界见 [架构说明](docs/architecture.md)。本项目使用 [MIT License](LICENSE)。
