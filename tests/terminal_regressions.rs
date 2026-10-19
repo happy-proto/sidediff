@@ -3,7 +3,7 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     process::Command,
-    sync::mpsc,
+    sync::{Arc, Mutex, mpsc},
     thread,
     time::{Duration, Instant},
 };
@@ -82,25 +82,34 @@ impl Repo {
 
 struct Session {
     child: Box<dyn Child + Send + Sync>,
-    writer: Box<dyn Write + Send>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
     _master: Box<dyn MasterPty + Send>,
-    rx: mpsc::Receiver<Vec<u8>>,
-    parser: vt100::Parser,
+    rx: mpsc::Receiver<(Vec<u8>, vt100::Screen)>,
+    screen: vt100::Screen,
     output: Vec<u8>,
+}
+
+#[derive(Default)]
+struct CursorReports(Vec<u8>);
+
+impl vt100::Callbacks for CursorReports {
+    fn unhandled_csi(
+        &mut self,
+        screen: &mut vt100::Screen,
+        i1: Option<u8>,
+        i2: Option<u8>,
+        params: &[&[u16]],
+        c: char,
+    ) {
+        if i1.is_none() && i2.is_none() && params == [&[6][..]] && c == 'n' {
+            let (row, col) = screen.cursor_position();
+            write!(self.0, "\x1b[{};{}R", row + 1, col + 1).unwrap();
+        }
+    }
 }
 
 impl Session {
     fn start(cwd: &Path, args: &[&str], cols: u16, env: &[(&str, PathBuf)]) -> Self {
-        let pair = native_pty_system()
-            .openpty(PtySize {
-                rows: 30,
-                cols,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
-            .unwrap();
-        let mut reader = pair.master.try_clone_reader().unwrap();
-        let writer = pair.master.take_writer().unwrap();
         let executable = std::env::var_os("SIDEDIFF_E2E_BIN")
             .unwrap_or_else(|| env!("CARGO_BIN_EXE_sidediff").into());
         let mut command = CommandBuilder::new(executable);
@@ -119,13 +128,49 @@ impl Session {
         for (key, value) in env {
             command.env(key, value);
         }
+        Self::spawn(command, cols)
+    }
+
+    fn spawn(command: CommandBuilder, cols: u16) -> Self {
+        let pair = native_pty_system()
+            .openpty(PtySize {
+                rows: 30,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .unwrap();
+        let mut reader = pair.master.try_clone_reader().unwrap();
+        let writer = Arc::new(Mutex::new(pair.master.take_writer().unwrap()));
         let child = pair.slave.spawn_command(command).unwrap();
         drop(pair.slave);
         let (tx, rx) = mpsc::channel();
+        let input = Arc::clone(&writer);
         thread::spawn(move || {
+            // ConPTY 的光标继承查询必须在后台应答，不能依赖测试正在等待屏幕。
+            let mut parser =
+                vt100::Parser::new_with_callbacks(30, cols, 0, CursorReports::default());
             let mut buffer = [0; 8192];
             while let Ok(length) = reader.read(&mut buffer) {
-                if length == 0 || tx.send(buffer[..length].to_vec()).is_err() {
+                if length == 0 {
+                    break;
+                }
+                parser.process(&buffer[..length]);
+                let replies = std::mem::take(&mut parser.callbacks_mut().0);
+                if !replies.is_empty() {
+                    let mut writer = input.lock().unwrap();
+                    if writer
+                        .write_all(&replies)
+                        .and_then(|_| writer.flush())
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                if tx
+                    .send((buffer[..length].to_vec(), parser.screen().clone()))
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -135,24 +180,25 @@ impl Session {
             writer,
             _master: pair.master,
             rx,
-            parser: vt100::Parser::new(30, cols, 0),
+            screen: vt100::Parser::new(30, cols, 0).screen().clone(),
             output: Vec::new(),
         }
     }
 
     fn send(&mut self, keys: &[u8]) {
-        self.writer.write_all(keys).unwrap();
-        self.writer.flush().unwrap();
+        let mut writer = self.writer.lock().unwrap();
+        writer.write_all(keys).unwrap();
+        writer.flush().unwrap();
     }
 
     fn wait_for(&mut self, text: &str) -> String {
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline {
-            if let Ok(chunk) = self.rx.recv_timeout(Duration::from_millis(20)) {
-                self.parser.process(&chunk);
+            if let Ok((chunk, screen)) = self.rx.recv_timeout(Duration::from_millis(20)) {
+                self.screen = screen;
                 self.output.extend(chunk);
             }
-            let screen = self.parser.screen().contents();
+            let screen = self.screen.contents();
             if screen.contains(text) {
                 return screen;
             }
@@ -165,7 +211,7 @@ impl Session {
         }
         panic!(
             "did not show {text:?}:\n{}\nraw:\n{}",
-            self.parser.screen().contents(),
+            self.screen.contents(),
             String::from_utf8_lossy(&self.output)
         );
     }
@@ -188,6 +234,41 @@ impl Drop for Session {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
+}
+
+#[test]
+fn terminal_cursor_query_is_answered_before_child_continues() {
+    const PROBE: &str = "SIDEDIFF_CURSOR_QUERY_PROBE";
+    if std::env::var_os(PROBE).is_some() {
+        crossterm::terminal::enable_raw_mode().unwrap();
+        let mut stdout = std::io::stdout();
+        stdout.write_all(b"\x1b[4;7H\x1b[").unwrap();
+        stdout.flush().unwrap();
+        stdout.write_all(b"6n").unwrap();
+        stdout.flush().unwrap();
+        let mut reply = [0; 6];
+        std::io::stdin().read_exact(&mut reply).unwrap();
+        assert_eq!(&reply, b"\x1b[4;7R");
+        stdout.write_all(b"CURSOR_QUERY_ANSWERED").unwrap();
+        stdout.flush().unwrap();
+        let mut quit = [0];
+        std::io::stdin().read_exact(&mut quit).unwrap();
+        assert_eq!(&quit, b"q");
+        crossterm::terminal::disable_raw_mode().unwrap();
+        return;
+    }
+
+    let mut command = CommandBuilder::new(std::env::current_exe().unwrap());
+    command.args([
+        "--exact",
+        "terminal_cursor_query_is_answered_before_child_continues",
+        "--nocapture",
+    ]);
+    command.env(PROBE, "1");
+    let mut session = Session::spawn(command, 80);
+    session.wait_for("CURSOR_QUERY_ANSWERED");
+    session.send(b"q");
+    session.exits_successfully();
 }
 
 #[test]
@@ -908,19 +989,14 @@ fn relative_directory_completion_uses_repository_root() {
         .unwrap();
     assert!(output.status.success());
     let completion = String::from_utf8(output.stdout).unwrap();
-    assert!(
-        completion
-            .lines()
-            .any(|line| line == "--relative=src/module/"),
-        "{completion}"
-    );
-    Session::start(
-        &repo.path().join("src"),
-        &["--relative=src/module/"],
-        180,
-        &[],
-    )
-    .wait_for("COMPLETED_SCOPE_CONTENT");
+    let separator = std::path::MAIN_SEPARATOR;
+    let expected = format!("--relative=src{separator}module{separator}");
+    let completed_argument = completion
+        .lines()
+        .find(|line| *line == expected)
+        .unwrap_or_else(|| panic!("{completion}"));
+    Session::start(&repo.path().join("src"), &[completed_argument], 180, &[])
+        .wait_for("COMPLETED_SCOPE_CONTENT");
 }
 
 #[test]
@@ -946,7 +1022,7 @@ fn recreated_rename_source_uses_head_baseline_and_copy_detection() {
             if changed {
                 session.wait_for("[M] old.txt");
             } else {
-                assert!(!session.parser.screen().contents().contains("[A] old.txt"));
+                assert!(!session.screen.contents().contains("[A] old.txt"));
             }
         }
         if changed {
@@ -1050,7 +1126,7 @@ fn relative_directory_does_not_read_a_similarly_prefixed_path() {
         session.wait_for("files: 2");
         session.send(b"j");
         session.wait_for("INSIDE_NEW");
-        assert!(!session.parser.screen().contents().contains("OUTSIDE"));
+        assert!(!session.screen.contents().contains("OUTSIDE"));
     }
     let mut session = Session::start(&repo.path().join("src"), &["--relative=."], 180, &[]);
     session.wait_for("files: 4");

@@ -465,7 +465,9 @@ mod tests {
         fs::create_dir_all(repo.path().join("src/module")).unwrap();
 
         let values = with_current_dir(&repo.path().join("src"), || directory_values("src/mo"));
-        assert!(values.contains(&"src/module/".to_string()));
+        let separator = std::path::MAIN_SEPARATOR;
+        let expected = format!("src{separator}module{separator}");
+        assert!(values.contains(&expected), "{values:?}");
     }
 
     fn revision_values(prefix: &str) -> Vec<String> {
