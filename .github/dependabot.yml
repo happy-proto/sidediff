@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    assignees: [DCjanus]
+    open-pull-requests-limit: 5
+    groups:
+      compatible-updates:
+        patterns: ["*"]
+        exclude-patterns: [crossterm, gix, libghostty-vt, portable-pty, ratatui, vt100]
+        update-types: [minor, patch]
+      zero-major-patches:
+        patterns: [crossterm, gix, libghostty-vt, portable-pty, ratatui, vt100]
+        update-types: [patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    assignees: [DCjanus]
+    open-pull-requests-limit: 5
+    groups:
+      compatible-updates:
+        patterns: ["*"]
+        update-types: [minor, patch]

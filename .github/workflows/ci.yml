@@ -1,0 +1,208 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # 默认分支串行完成发布，避免替换资产时被后续提交取消。
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: jdx/mise-action@v4
+      - uses: ./.github/actions/setup-difft
+        with:
+          target: x86_64-unknown-linux-gnu
+          sha256: 61aea5394a53c56f144637cf39b3a0c0dafa27769731745e5851ff276e6478da
+      - name: 提交检查（含 PTY 回归）
+        run: mise run precommit
+      - name: Ghostty 终端端到端测试
+        run: mise run ghostty-e2e
+
+  build:
+    name: build (${{ matrix.target }})
+    if: github.event_name == 'pull_request' || github.ref_name == github.event.repository.default_branch
+    timeout-minutes: 45
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary_ext: ""
+            difft_sha256: 61aea5394a53c56f144637cf39b3a0c0dafa27769731745e5851ff276e6478da
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            binary_ext: ""
+            difft_sha256: 92acf8890543b6d6f436a87a7a5ec64f82a4b8dbe3a7e564c1e5cbfe60823bc7
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary_ext: .exe
+            difft_sha256: 9a979f9d96d739625a0fe69317f3197cc7bcef663a6d7195197d6c9bf96ed6f5
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            binary_ext: .exe
+            difft_sha256: fbf0497f654271f9c96dfc52f06aad2163ac391ee4050f9dab7b88cba2bd9e77
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: jdx/mise-action@v4
+      - uses: ./.github/actions/setup-difft
+        with:
+          target: ${{ matrix.target }}
+          sha256: ${{ matrix.difft_sha256 }}
+      - name: 配置 MSVC 编译环境
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'amd64_arm64' || 'amd64' }}
+      - name: 为 Cargo 指定 MSVC linker
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # 使用编译器旁的 linker，避免误选 Git for Windows 的同名工具。
+          $compiler = (Get-Command cl.exe).Source
+          $linker = Join-Path (Split-Path $compiler) 'link.exe'
+          if (-not (Test-Path $linker)) { throw '找不到 MSVC linker' }
+          $variable = 'CARGO_TARGET_' + $env:TARGET.Replace('-', '_').ToUpperInvariant() + '_LINKER'
+          "$variable=$linker" >> $env:GITHUB_ENV
+      - name: 构建并检查二进制
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          BINARY_EXT: ${{ matrix.binary_ext }}
+        run: |
+          set -euo pipefail
+          cargo build --release --locked --target "${TARGET}"
+          "target/${TARGET}/release/sidediff${BINARY_EXT}" --version
+          "target/${TARGET}/release/sidediff${BINARY_EXT}" --help > /dev/null
+      - name: 使用发布二进制运行回归
+        env:
+          SIDEDIFF_E2E_BIN: ${{ github.workspace }}/target/${{ matrix.target }}/release/sidediff${{ matrix.binary_ext }}
+        run: mise run test
+      - name: 打包并校验 Unix 资产
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          package_dir="${RUNNER_TEMP}/sidediff-${TARGET}"
+          archive_path="${package_dir}.tar.xz"
+          mkdir -p "${package_dir}"
+          cp "target/${TARGET}/release/sidediff" "${package_dir}/sidediff"
+          cp LICENSE README.md "${package_dir}/"
+          printf 'commit=%s\ntarget=%s\n' "${GITHUB_SHA}" "${TARGET}" > "${package_dir}/BUILDINFO.txt"
+          tar -C "${RUNNER_TEMP}" -cf - "sidediff-${TARGET}" | xz -9 -T0 > "${archive_path}"
+          xz -t "${archive_path}"
+          mkdir -p "${RUNNER_TEMP}/unpacked"
+          tar -xJf "${archive_path}" -C "${RUNNER_TEMP}/unpacked"
+          cmp "${package_dir}/sidediff" "${RUNNER_TEMP}/unpacked/sidediff-${TARGET}/sidediff"
+          "${RUNNER_TEMP}/unpacked/sidediff-${TARGET}/sidediff" --version
+          echo "PACKAGE_PATH=${archive_path}" >> "${GITHUB_ENV}"
+      - name: 打包并校验 Windows 资产
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageDir = Join-Path $env:RUNNER_TEMP "sidediff-$env:TARGET"
+          $archivePath = "$packageDir.zip"
+          New-Item -ItemType Directory -Path $packageDir | Out-Null
+          Copy-Item "target/$env:TARGET/release/sidediff.exe" (Join-Path $packageDir 'sidediff.exe')
+          Copy-Item LICENSE, README.md -Destination $packageDir
+          "commit=$env:GITHUB_SHA`ntarget=$env:TARGET" | Set-Content (Join-Path $packageDir 'BUILDINFO.txt')
+          Compress-Archive -Path $packageDir -DestinationPath $archivePath
+          $unpacked = Join-Path $env:RUNNER_TEMP 'unpacked'
+          Expand-Archive -Path $archivePath -DestinationPath $unpacked
+          $binary = Join-Path $unpacked "sidediff-$env:TARGET/sidediff.exe"
+          if ((Get-FileHash $binary).Hash -ne (Get-FileHash "$packageDir/sidediff.exe").Hash) {
+            throw '解包后二进制校验失败'
+          }
+          & $binary --version
+          if ($LASTEXITCODE -ne 0) { throw '解包后二进制启动失败' }
+          "PACKAGE_PATH=$archivePath" >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sidediff-release-package-${{ matrix.target }}
+          path: ${{ env.PACKAGE_PATH }}
+          if-no-files-found: error
+
+  release-latest:
+    name: release latest
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    timeout-minutes: 10
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: sidediff-release-package-*
+          path: ${{ runner.temp }}/latest-release-assets
+          merge-multiple: true
+      - name: 更新 latest tag 和 Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ASSET_DIR: ${{ runner.temp }}/latest-release-assets
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          # 旧提交可以完成检查，但不能把 latest 回退到过期的默认分支。
+          default_sha=$(git ls-remote origin "refs/heads/${DEFAULT_BRANCH}" | cut -f1)
+          if [[ "${default_sha}" != "${GITHUB_SHA}" ]]; then
+            echo "默认分支已更新，跳过旧提交的发布。" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          git tag -f latest "${GITHUB_SHA}"
+          git push --force origin refs/tags/latest
+          notes_file="${RUNNER_TEMP}/latest-release-notes.md"
+          cat > "${notes_file}" <<EOF
+          ${DEFAULT_BRANCH} 分支最近一次通过全部检查的持续构建。
+
+          - Commit: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
+          - 运行依赖：Git，以及支持 JSON 输出的 difftastic（difft）。
+          EOF
+
+          if gh release view latest > /dev/null 2>&1; then
+            gh release edit latest --title latest --notes-file "${notes_file}" --prerelease --latest=false
+          else
+            gh release create latest --title latest --notes-file "${notes_file}" --prerelease --latest=false --verify-tag
+          fi
+          gh release upload latest "${RELEASE_ASSET_DIR}"/* --clobber
+
+          # 清理已退出矩阵或已改变格式的旧资产。
+          gh release view latest --json assets --jq '.assets[].name | select(startswith("sidediff-"))' \
+            > "${RUNNER_TEMP}/latest-release-package-names.txt"
+          while IFS= read -r asset; do
+            if [[ ! -f "${RELEASE_ASSET_DIR}/${asset}" ]]; then
+              gh release delete-asset latest "${asset}" --yes
+            fi
+          done < "${RUNNER_TEMP}/latest-release-package-names.txt"

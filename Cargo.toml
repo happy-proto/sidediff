@@ -1,0 +1,42 @@
+[package]
+name = "sidediff"
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/happy-proto/sidediff"
+description = "Read-only Git diff TUI with structural diffs and syntax highlighting"
+license = "MIT"
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/latest/sidediff-{ target }{ archive-suffix }"
+bin-dir = "sidediff-{ target }/{ bin }{ binary-ext }"
+
+[package.metadata.binstall.overrides.'cfg(target_os = "windows")']
+pkg-fmt = "zip"
+
+[package.metadata.binstall.overrides.'cfg(not(target_os = "windows"))']
+pkg-fmt = "txz"
+
+[dependencies]
+anyhow = "1.0.102"
+clap = { version = "4.6.0", features = ["derive"] }
+clap_complete = { version = "4.6.0", features = ["unstable-dynamic"] }
+command-group = "5.0.1"
+crossterm = "0.29.0"
+encoding_rs = "0.8.42"
+gix = "0.81.0"
+kat = { git = "https://github.com/happy-proto/kat.git", default-features = false }
+libghostty-vt = { version = "0.2.1", default-features = false, optional = true, git = "https://github.com/uzaaft/libghostty-rs", rev = "d2036baeb605d31d09a9e2ba6d0c923e04c34d54" }
+ratatui = "0.30.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tempfile = "3.27.0"
+thiserror = "2.0.18"
+unicode-segmentation = "1.13.3"
+unicode-width = "0.2.2"
+
+[features]
+ghostty-e2e = ["dep:libghostty-vt"]
+
+[dev-dependencies]
+portable-pty = "0.9.0"
+vt100 = "0.17.0"

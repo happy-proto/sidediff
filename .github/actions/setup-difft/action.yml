@@ -1,0 +1,47 @@
+name: 安装验证版本的 difftastic
+description: 下载原生 difftastic 0.71.0 并校验发布资产的 SHA-256
+inputs:
+  target:
+    description: difftastic 发布目标
+    required: true
+  sha256:
+    description: 上游对应资产的 SHA-256
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: 安装 Unix difft
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        DIFFT_TARGET: ${{ inputs.target }}
+        DIFFT_SHA256: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+        archive="${RUNNER_TEMP}/difft.tar.gz"
+        destination="${RUNNER_TEMP}/difft"
+        curl --fail --location --retry 3 \
+          "https://github.com/Wilfred/difftastic/releases/download/0.71.0/difft-0.71.0-${DIFFT_TARGET}.tar.gz" \
+          --output "${archive}"
+        printf '%s  %s\n' "${DIFFT_SHA256}" "${archive}" | shasum -a 256 --check
+        mkdir -p "${destination}"
+        tar -xzf "${archive}" -C "${destination}"
+        "${destination}/difft" --version
+        echo "${destination}" >> "${GITHUB_PATH}"
+    - name: 安装 Windows difft
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        DIFFT_TARGET: ${{ inputs.target }}
+        DIFFT_SHA256: ${{ inputs.sha256 }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $archive = Join-Path $env:RUNNER_TEMP 'difft.zip'
+        $destination = Join-Path $env:RUNNER_TEMP 'difft'
+        curl.exe --fail --location --retry 3 "https://github.com/Wilfred/difftastic/releases/download/0.71.0/difft-0.71.0-$env:DIFFT_TARGET.zip" --output $archive
+        if ($LASTEXITCODE -ne 0) { throw 'difftastic 下载失败' }
+        if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $env:DIFFT_SHA256) { throw 'difftastic SHA-256 校验失败' }
+        Expand-Archive -Path $archive -DestinationPath $destination
+        & (Join-Path $destination 'difft.exe') --version
+        if ($LASTEXITCODE -ne 0) { throw 'difftastic 启动失败' }
+        $destination >> $env:GITHUB_PATH

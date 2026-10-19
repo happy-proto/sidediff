@@ -1,0 +1,33 @@
+[tools]
+"cargo:cargo-nextest" = "0.9.148"
+
+[settings]
+activate_aggressive = true
+
+[tasks.precommit]
+description = "依次检查格式、Clippy 和常规回归"
+run = [{ task = "fmtcheck" }, { task = "lint" }, { task = "test" }]
+
+[tasks.fmtcheck]
+description = "检查 Rust 格式，不修改源码"
+run = "cargo fmt --check"
+
+[tasks.lint]
+description = "运行 Clippy，拒绝警告"
+run = "cargo clippy --locked --all-targets -- -D warnings"
+
+[tasks.test]
+description = "运行常规测试与真实终端回归"
+# 单项测试超时由 .config/nextest.toml 统一配置。
+run = "cargo nextest run --config-file .config/nextest.toml --cargo-quiet --status-level fail --final-status-level fail --failure-output final --success-output never --show-progress none --no-tests pass"
+
+[tasks.ghostty-e2e]
+description = "在 PTY 和 Ghostty 终端内核中验证屏幕颜色"
+run = "cargo nextest run --features ghostty-e2e --test ghostty_terminal_e2e --config-file .config/nextest.toml --cargo-quiet --status-level fail --final-status-level fail --failure-output final --success-output never --show-progress none --no-tests pass"
+
+[tasks.ghostty-e2e.tools]
+zig = "0.16.0"
+
+[tasks.install]
+description = "从当前源码安装 sidediff"
+run = "cargo install --path . --locked"
