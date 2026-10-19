@@ -85,8 +85,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       RUSTC_WRAPPER: sccache
-      CC: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache cc' }}
-      CXX: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache c++' }}
     strategy:
       fail-fast: false
       matrix:
@@ -158,6 +156,9 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           BINARY_EXT: ${{ matrix.binary_ext }}
+          # 工具安装自行选择编译器，避免覆盖 Windows ARM64 所需的 clang-cl。
+          CC: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache cc' }}
+          CXX: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache c++' }}
         run: |
           set -euo pipefail
           cargo build --release --locked --target "${TARGET}"
@@ -166,6 +167,8 @@ jobs:
       - name: 使用发布二进制运行回归
         env:
           SIDEDIFF_E2E_BIN: ${{ github.workspace }}/target/${{ matrix.target }}/release/sidediff${{ matrix.binary_ext }}
+          CC: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache cc' }}
+          CXX: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache c++' }}
         run: mise run test
       - name: 打包并校验 Unix 资产
         if: runner.os != 'Windows'
