@@ -17,7 +17,10 @@ permissions:
 
 env:
   CARGO_INCREMENTAL: "0"
-  SCCACHE_GHA_ENABLED: "true"
+  # 逐对象访问 GHA 后端会触发限流；磁盘缓存由 actions/cache 批量同步。
+  SCCACHE_GHA_ENABLED: "false"
+  SCCACHE_DIR: ${{ github.workspace }}/../sccache
+  SCCACHE_CACHE_SIZE: 2G
 
 jobs:
   test:
@@ -34,6 +37,14 @@ jobs:
           components: clippy, rustfmt
       - uses: mozilla-actions/sccache-action@v0.0.11
         id: sccache
+      - name: 恢复 sccache 编译缓存
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-v1-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            sccache-v1-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('Cargo.lock') }}-
+            sccache-v1-${{ runner.os }}-${{ runner.arch }}-test-
       - uses: actions/cache@v6
         with:
           path: |
@@ -121,6 +132,14 @@ jobs:
           "$variable=$linker" >> $env:GITHUB_ENV
       - uses: mozilla-actions/sccache-action@v0.0.11
         id: sccache
+      - name: 恢复 sccache 编译缓存
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-v1-${{ matrix.target }}-build-${{ hashFiles('Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            sccache-v1-${{ matrix.target }}-build-${{ hashFiles('Cargo.lock') }}-
+            sccache-v1-${{ matrix.target }}-build-
       - uses: actions/cache@v6
         with:
           path: |
