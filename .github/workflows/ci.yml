@@ -2,7 +2,9 @@ name: CI
 
 on:
   pull_request:
+  merge_group:
   push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -13,32 +15,78 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  CARGO_INCREMENTAL: "0"
+  # 逐对象访问 GHA 后端会触发限流；磁盘缓存由 actions/cache 批量同步。
+  SCCACHE_GHA_ENABLED: "false"
+  SCCACHE_DIR: ${{ github.workspace }}/.sccache
+  SCCACHE_CACHE_SIZE: 2G
+
 jobs:
   test:
-    if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
     timeout-minutes: 25
     runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      CC: sccache cc
+      CXX: sccache c++
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: mozilla-actions/sccache-action@v0.0.11
+        id: sccache
+      - name: 恢复 sccache 编译缓存
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-v1-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            sccache-v1-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('Cargo.lock') }}-
+            sccache-v1-${{ runner.os }}-${{ runner.arch }}-test-
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
       - uses: jdx/mise-action@v5
-      - uses: ./.github/actions/setup-difft
+      - uses: $/.github/actions/setup-difft
         with:
           target: x86_64-unknown-linux-gnu
           sha256: 61aea5394a53c56f144637cf39b3a0c0dafa27769731745e5851ff276e6478da
-      - name: 提交检查（含 PTY 回归）
-        run: mise run precommit
+      - name: 格式、Clippy 与 Actions lock 检查
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: mise run check
+      - name: 常规测试（含 PTY 回归）
+        run: mise run test
       - name: Ghostty 终端端到端测试
+        if: github.ref_name == github.event.repository.default_branch
         run: mise run ghostty-e2e
+      - name: 保存 sccache 统计
+        if: always() && steps.sccache.outcome == 'success'
+        shell: bash
+        run: sccache --show-stats --stats-format=json > "${RUNNER_TEMP}/sccache-stats.json"
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.sccache.outcome == 'success'
+        with:
+          name: sccache-test
+          path: ${{ runner.temp }}/sccache-stats.json
 
   build:
     name: build (${{ matrix.target }})
-    if: github.event_name == 'pull_request' || github.ref_name == github.event.repository.default_branch
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
     timeout-minutes: 45
     needs: test
     runs-on: ${{ matrix.runner }}
+    env:
+      RUSTC_WRAPPER: sccache
+      CC: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache cc' }}
+      CXX: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache c++' }}
     strategy:
       fail-fast: false
       matrix:
@@ -64,11 +112,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: jdx/mise-action@v5
-      - uses: ./.github/actions/setup-difft
-        with:
-          target: ${{ matrix.target }}
-          sha256: ${{ matrix.difft_sha256 }}
       - name: 配置 MSVC 编译环境
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
@@ -87,6 +130,29 @@ jobs:
           if (-not (Test-Path $linker)) { throw '找不到 MSVC linker' }
           $variable = 'CARGO_TARGET_' + $env:TARGET.Replace('-', '_').ToUpperInvariant() + '_LINKER'
           "$variable=$linker" >> $env:GITHUB_ENV
+      - uses: mozilla-actions/sccache-action@v0.0.11
+        id: sccache
+      - name: 恢复 sccache 编译缓存
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-v1-${{ matrix.target }}-build-${{ hashFiles('Cargo.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            sccache-v1-${{ matrix.target }}-build-${{ hashFiles('Cargo.lock') }}-
+            sccache-v1-${{ matrix.target }}-build-
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
+      - uses: jdx/mise-action@v5
+      - uses: $/.github/actions/setup-difft
+        with:
+          target: ${{ matrix.target }}
+          sha256: ${{ matrix.difft_sha256 }}
       - name: 构建并检查二进制
         shell: bash
         env:
@@ -149,10 +215,19 @@ jobs:
           name: sidediff-release-package-${{ matrix.target }}
           path: ${{ env.PACKAGE_PATH }}
           if-no-files-found: error
+      - name: 保存 sccache 统计
+        if: always() && steps.sccache.outcome == 'success'
+        shell: bash
+        run: sccache --show-stats --stats-format=json > "${RUNNER_TEMP}/sccache-stats.json"
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.sccache.outcome == 'success'
+        with:
+          name: sccache-build-${{ matrix.target }}
+          path: ${{ runner.temp }}/sccache-stats.json
 
   release-latest:
     name: release latest
-    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
     timeout-minutes: 10
     needs: build
     runs-on: ubuntu-latest
