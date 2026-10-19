@@ -115,11 +115,14 @@ impl Session {
         let mut command = CommandBuilder::new(executable);
         command.cwd(cwd);
         command.args(args);
-        for (key, _) in std::env::vars_os() {
+        // Windows 上 portable-pty 默认重建注册表环境，显式继承进程环境以保留临时 PATH。
+        command.env_clear();
+        for (key, value) in std::env::vars_os() {
             let name = key.to_string_lossy();
             if name.starts_with("GIT_") || name.starts_with("DFT_") || name == "COMPLETE" {
-                command.env_remove(key);
+                continue;
             }
+            command.env(key, value);
         }
         command.env("GIT_CONFIG_GLOBAL", cwd.join("missing-config"));
         command.env("GIT_CONFIG_NOSYSTEM", "1");
