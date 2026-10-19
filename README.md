@@ -14,13 +14,13 @@
 cargo install --path . --locked
 ```
 
-首次发布后，可用 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) 安装 `latest` 构建：
+使用 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) 安装 `latest` 预编译包：
 
 ```sh
 cargo binstall --git https://github.com/happy-proto/sidediff sidediff
 ```
 
-滚动构建可能保留相同包版本；重新下载同版本时加 `--force`。发布矩阵包含 Linux x64（glibc）、macOS Apple Silicon、Windows x64 和 Windows ARM64；资产规则见 [CI](.github/workflows/ci.yml) 与 [Cargo.toml](Cargo.toml)。
+预编译包支持 Linux x64（glibc）、macOS Apple Silicon、Windows x64 和 Windows ARM64。同版本重新安装时加 `--force`。
 
 ## 使用
 
