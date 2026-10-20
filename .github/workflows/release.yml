@@ -36,11 +36,13 @@ jobs:
 
   build:
     name: build (${{ matrix.target }})
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
+    # 手动运行可验证修复分支；发布任务仍只接受默认分支。
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch
     timeout-minutes: 45
     runs-on: ${{ matrix.runner }}
     env:
-      RUSTC_WRAPPER: sccache
+      # Windows 上大量 grammar 参数会超过 sccache 启动 rustc 的命令行长度限制。
+      RUSTC_WRAPPER: ${{ !contains(matrix.target, 'windows') && 'sccache' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -85,8 +87,10 @@ jobs:
           $variable = 'CARGO_TARGET_' + $env:TARGET.Replace('-', '_').ToUpperInvariant() + '_LINKER'
           "$variable=$linker" >> $env:GITHUB_ENV
       - uses: mozilla-actions/sccache-action@v0.0.11
+        if: runner.os != 'Windows'
         id: sccache
       - name: 恢复 sccache 编译缓存
+        if: runner.os != 'Windows'
         uses: actions/cache@v6
         with:
           path: ${{ env.SCCACHE_DIR }}
@@ -113,8 +117,8 @@ jobs:
           TARGET: ${{ matrix.target }}
           BINARY_EXT: ${{ matrix.binary_ext }}
           # 工具安装自行选择编译器，避免覆盖 Windows ARM64 所需的 clang-cl。
-          CC: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache cc' }}
-          CXX: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache c++' }}
+          CC: ${{ contains(matrix.target, 'windows') && 'cl' || 'sccache cc' }}
+          CXX: ${{ contains(matrix.target, 'windows') && 'cl' || 'sccache c++' }}
         run: |
           set -euo pipefail
           cargo build --release --locked --target "${TARGET}"
@@ -123,8 +127,8 @@ jobs:
       - name: 使用发布二进制运行回归
         env:
           SIDEDIFF_E2E_BIN: ${{ github.workspace }}/target/${{ matrix.target }}/release/sidediff${{ matrix.binary_ext }}
-          CC: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache cc' }}
-          CXX: ${{ contains(matrix.target, 'windows') && 'sccache cl' || 'sccache c++' }}
+          CC: ${{ contains(matrix.target, 'windows') && 'cl' || 'sccache cc' }}
+          CXX: ${{ contains(matrix.target, 'windows') && 'cl' || 'sccache c++' }}
         run: mise run test
       - name: 打包并校验 Unix 资产
         if: runner.os != 'Windows'
