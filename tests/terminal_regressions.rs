@@ -1,6 +1,7 @@
 //! 真实二进制的回归：每个场景都来自已复现的用户可见错误。
 use std::{
     io::{Read, Write},
+    num::NonZeroU16,
     path::{Path, PathBuf},
     process::Command,
     sync::{Arc, Mutex, mpsc},
@@ -135,6 +136,8 @@ impl Session {
     }
 
     fn spawn(command: CommandBuilder, cols: u16) -> Self {
+        let rows = NonZeroU16::new(30).unwrap();
+        let screen_cols = NonZeroU16::new(cols).expect("terminal width must be nonzero");
         let pair = native_pty_system()
             .openpty(PtySize {
                 rows: 30,
@@ -152,7 +155,7 @@ impl Session {
         thread::spawn(move || {
             // ConPTY 的光标继承查询必须在后台应答，不能依赖测试正在等待屏幕。
             let mut parser =
-                vt100::Parser::new_with_callbacks(30, cols, 0, CursorReports::default());
+                vt100::Parser::new_with_callbacks(rows, screen_cols, 0, CursorReports::default());
             let mut buffer = [0; 8192];
             while let Ok(length) = reader.read(&mut buffer) {
                 if length == 0 {
@@ -183,7 +186,7 @@ impl Session {
             writer,
             _master: pair.master,
             rx,
-            screen: vt100::Parser::new(30, cols, 0).screen().clone(),
+            screen: vt100::Parser::new(rows, screen_cols, 0).screen().clone(),
             output: Vec::new(),
         }
     }
@@ -201,7 +204,7 @@ impl Session {
     fn screen_contents(&self) -> String {
         // 保留物理行边界；ConPTY 的自动折行不能改变屏幕坐标。
         self.screen
-            .rows(0, self.screen.size().1)
+            .rows(0, self.screen.size().1.get())
             .collect::<Vec<_>>()
             .join("\n")
     }
