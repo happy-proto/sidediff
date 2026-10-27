@@ -39,4 +39,4 @@ ghostty-e2e = ["dep:libghostty-vt"]
 
 [dev-dependencies]
 portable-pty = "0.9.0"
-vt100 = "0.17.0"
+vt100 = "0.18.1"
