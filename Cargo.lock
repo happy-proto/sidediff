@@ -655,7 +655,7 @@ dependencies = [
 [[package]]
 name = "difftastic"
 version = "0.71.0"
-source = "git+https://github.com/happy-proto/difftastic.git#89c08a34f1c1fe531385fa250a330d888447baed"
+source = "git+https://github.com/happy-proto/difftastic.git#e28e14ab3cc32cf7cf9874ba267e4936f2ecfdce"
 dependencies = [
  "bumpalo",
  "cc",
@@ -2271,7 +2271,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3686,7 +3686,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.2",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",

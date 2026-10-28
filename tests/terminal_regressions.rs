@@ -746,6 +746,22 @@ fn content_limit_keeps_file_visible_and_explains_omission() {
 }
 
 #[test]
+fn invalid_diff_config_restores_terminal_before_reporting_error() {
+    let repo = Repo::dirty();
+    let mut session = Session::start(
+        repo.path(),
+        &[],
+        180,
+        &[("DFT_OVERRIDE_1", "missing-colon".into())],
+    );
+    session.wait_for("Invalid language override syntax");
+    assert!(
+        !session.screen.alternate_screen(),
+        "error left the terminal in the alternate screen"
+    );
+}
+
+#[test]
 fn library_bulk_attributes_preserve_binary_and_nested_text_rules() {
     let repo = Repo::new();
     repo.write(".gitattributes", "*.txt -diff\n");
