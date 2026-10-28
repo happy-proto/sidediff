@@ -7,11 +7,11 @@
 
 一个只读的 Git 差异终端界面，用于浏览当前工作区、暂存区和历史提交的左右差异。
 
-[difftastic](https://github.com/Wilfred/difftastic) 生成结构化差异，[kat](https://github.com/happy-proto/kat) 提供语法高亮与嵌套区域背景。`kat` 编入程序；运行时仍需外部 `git` 和 `difft`。
+[difftastic 内部库 fork](https://github.com/happy-proto/difftastic) 生成结构化差异，[kat](https://github.com/happy-proto/kat) 提供语法高亮与嵌套区域背景。两者均编入程序，运行时只需外部 Git。
 
 ## 安装
 
-先安装 Git 和支持 JSON 输出的 difftastic。当前验证使用 **difftastic 0.71.0**；程序启动时会探测 JSON 能力。上游预编译包见 [difftastic Releases](https://github.com/Wilfred/difftastic/releases/tag/0.71.0)。
+先安装 Git。差异引擎随 sidediff 编译，无需安装 `difft`。
 
 从源码安装需要 stable Rust：
 
@@ -74,7 +74,9 @@ sidediff -M50% HEAD -- src
 | `n` / `N` | 下一个 / 上一个 hunk |
 | `/` | 文件模糊搜索；搜索中普通字母均作为输入，用方向键移动 |
 
-加载期间可用 `q`、`Esc` 或 `Ctrl-c` 取消。鼠标捕获关闭，便于直接选择和复制终端文本。默认 tab 宽度为 4，可用 `--tab-width` 调整。程序明确使用 difft 的 JSON 输出，`DFT_DISPLAY=inline` 不会切换界面布局；内部调用固定 `DFT_EXIT_CODE=false`，其他 `DFT_*` 设置仍可能影响差异计算。
+加载期间可用 `q`、`Esc` 或 `Ctrl-c` 取消。鼠标捕获关闭，便于直接选择和复制终端文本。默认 tab 宽度为 4，可用 `--tab-width` 调整。差异引擎固定使用 JSON 数据和完整差异计算，`DFT_DISPLAY`、`DFT_EXIT_CODE`、`DFT_CHECK_ONLY` 不改变界面或隐藏差异；其他 `DFT_*` 配置仍可能影响计算。
+
+默认最多 4 个文件并行计算；单侧超过 10 MiB、新旧内容累计超过 128 MiB，或超出 5,000 个计算文件时，保留文件条目并显示省略原因。上限可调整，详见 [性能与资源边界](docs/performance.md)。这些是输入限制，不是进程内存硬上限。
 
 ## 动态补全
 

@@ -519,29 +519,69 @@ fn repository_directory_can_end_with_a_space() {
 
 #[cfg(unix)]
 #[test]
-fn loading_can_be_cancelled_while_difft_is_running() {
+fn external_difft_is_not_invoked() {
     use std::os::unix::fs::PermissionsExt;
     let repo = Repo::dirty();
     let tools = tempfile::tempdir().unwrap();
     let difft = tools.path().join("difft");
-    // 版本与功能探测正常通过，仅实际差异命令挂起，复现加载期间不能退出的问题。
-    std::fs::write(&difft, "#!/bin/sh\ncase \"$*\" in *--version*|*--help*) exit 0;; esac\nsleep 8 &\ntouch \"$SIDEDIFF_TEST_MARKER\"\nwait\n").unwrap();
+    std::fs::write(
+        &difft,
+        "#!/bin/sh\ntouch \"$SIDEDIFF_TEST_MARKER\"\nexit 99\n",
+    )
+    .unwrap();
     std::fs::set_permissions(&difft, std::fs::Permissions::from_mode(0o755)).unwrap();
     let mut paths = vec![tools.path().to_path_buf()];
     paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
     let path = PathBuf::from(std::env::join_paths(paths).unwrap());
-    let marker = tools.path().join("difft-started");
-    let mut session = Session::start(
+    let marker = tools.path().join("difft-invoked");
+    Session::start(
         repo.path(),
         &[],
         180,
         &[("PATH", path), ("SIDEDIFF_TEST_MARKER", marker.clone())],
+    )
+    .wait_for("after");
+    assert!(
+        !marker.exists(),
+        "sidediff invoked the external difft executable"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn loading_can_be_cancelled_while_git_is_running() {
+    use std::os::unix::fs::PermissionsExt;
+    let repo = Repo::dirty();
+    let tools = tempfile::tempdir().unwrap();
+    let real_git = std::process::Command::new("sh")
+        .args(["-c", "command -v git"])
+        .output()
+        .unwrap();
+    assert!(real_git.status.success());
+    let real_git = String::from_utf8(real_git.stdout).unwrap();
+    let git = tools.path().join("git");
+    // 仓库探测正常通过，仅 raw diff 枚举挂起，验证取消时回收整个进程组。
+    std::fs::write(&git, "#!/bin/sh\nif [ \"$1\" = diff ]; then\nsleep 8 &\ntouch \"$SIDEDIFF_TEST_MARKER\"\nwait\nfi\nexec \"$SIDEDIFF_TEST_REAL_GIT\" \"$@\"\n").unwrap();
+    std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut paths = vec![tools.path().to_path_buf()];
+    paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
+    let path = PathBuf::from(std::env::join_paths(paths).unwrap());
+    let marker = tools.path().join("git-started");
+    let mut session = Session::start(
+        repo.path(),
+        &[],
+        180,
+        &[
+            ("PATH", path),
+            ("SIDEDIFF_TEST_MARKER", marker.clone()),
+            ("SIDEDIFF_TEST_REAL_GIT", real_git.trim().into()),
+        ],
     );
     let deadline = Instant::now() + Duration::from_secs(5);
     while !marker.exists() && Instant::now() < deadline {
         thread::sleep(Duration::from_millis(10));
     }
-    assert!(marker.exists(), "the actual diff command did not start");
+    assert!(marker.exists(), "the actual Git diff command did not start");
     session.send(b"q");
     session.exits_successfully();
 }
@@ -690,6 +730,39 @@ fn merge_commit_shorthand_compares_first_parent_to_merge_snapshot() {
 fn difft_exit_code_environment_does_not_reject_valid_differences() {
     let repo = Repo::dirty();
     Session::start(repo.path(), &[], 180, &[("DFT_EXIT_CODE", "true".into())]).wait_for("after");
+}
+
+#[test]
+fn content_limit_keeps_file_visible_and_explains_omission() {
+    let repo = Repo::dirty();
+    let mut session = Session::start(
+        repo.path(),
+        &[],
+        180,
+        &[("SIDEDIFF_MAX_FILE_BYTES", "1".into())],
+    );
+    session.wait_for("Content omitted:");
+    session.wait_for("per-side limit (1 bytes)");
+}
+
+#[test]
+fn library_bulk_attributes_preserve_binary_and_nested_text_rules() {
+    let repo = Repo::new();
+    repo.write(".gitattributes", "*.txt -diff\n");
+    repo.write("sub/.gitattributes", "normal.txt diff\n");
+    for path in ["a.txt", "spaced name.txt", "sub/normal.txt"] {
+        repo.write(path, "BEFORE_ATTRIBUTE_TEST\n");
+    }
+    repo.commit();
+    for path in ["a.txt", "spaced name.txt", "sub/normal.txt"] {
+        repo.write(path, "AFTER_ATTRIBUTE_TEST\n");
+    }
+    let env = [("SIDEDIFF_DIFF_JOBS", "4".into())];
+    Session::start(repo.path(), &[], 180, &env).wait_for("Binary file changed");
+    Session::start(repo.path(), &["--", "spaced name.txt"], 180, &env)
+        .wait_for("Binary file changed");
+    Session::start(repo.path(), &["--", "sub/normal.txt"], 180, &env)
+        .wait_for("AFTER_ATTRIBUTE_TEST");
 }
 
 #[test]

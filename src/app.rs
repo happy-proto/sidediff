@@ -56,8 +56,7 @@ fn load_with_ui(
         let _cancel = CancelOnDrop(request.cancellation.clone());
         let (tx, rx) = mpsc::channel();
         scope.spawn(move || {
-            let result = git_diff::ensure_difftastic(&request.cancellation)
-                .and_then(|()| git_diff::load_diffs(&request));
+            let result = git_diff::load_diffs(&request);
             let _ = tx.send(result);
         });
         loop {

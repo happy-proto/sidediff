@@ -4,10 +4,10 @@
 
 1. [cli.rs](../src/cli.rs) 解析 Git 比较参数，保留调用目录与展示路径前缀。
 2. [git_diff.rs](../src/git_diff.rs) 调用 Git CLI 获取 NUL 分隔的 raw records。默认聚合模式合并工作区与未跟踪状态；暂存与历史比较读取相应对象。
-3. 对普通文件，将历史 blob 和符号链接内容临时物化，调用外部 `difft --display json`。临时文件随本次加载释放；不会 stage、写回或修改用户文件。
+3. 在内容读取前按大小、累计体积和文件数准入；gix 读取历史 blob 及 Git attributes，工作区读取原文件或符号链接目标文本。字节直接交给 difftastic 库，普通文件不物化差异内容临时文件。默认最多 4 个文件并行计算，按 Git 原始顺序收集结果。
 4. difft JSON 决定行对齐、差异范围与 hunk；[kat_adapter.rs](../src/kat_adapter.rs) 通过 kat 的 `PreparedDocument` 接口提供高亮与嵌套区域背景。高亮适配不承担差异计算。
 5. [model.rs](../src/model.rs) 合成左右行、折行、搜索与导航状态；[ui.rs](../src/ui.rs) 用 Ratatui 绘制当前可见行。变更底色优先于嵌套区域背景。
-6. [app.rs](../src/app.rs) 在加载线程工作时处理取消输入；[subprocess.rs](../src/subprocess.rs) 使用 Unix 进程组或 Windows Job Object 回收被取消的 Git/difft 及其子进程。终端退出守卫恢复备用屏幕、光标与 raw mode。
+6. [app.rs](../src/app.rs) 在加载线程工作时处理取消输入；[subprocess.rs](../src/subprocess.rs) 使用 Unix 进程组或 Windows Job Object 回收被取消的 Git 及其子进程。终端退出守卫恢复备用屏幕、光标与 raw mode；库内正在执行的单文件计算需要完成后才能回收加载线程。
 
 Git 路径在访问、比较与去重时保留原始字节；不可解码字节、控制字符和 U+FFFD 等需要消歧的字符只在展示时转义。
 
@@ -23,7 +23,7 @@ kat 使用 [kat-parsers](https://github.com/happy-proto/kat-parsers) 统一提�
 
 | 边界 | 职责 | 验证方式 |
 | --- | --- | --- |
-| Git 与差异输入 | 状态、revision、路径和快照物化；调用 difft | 在独立 Git 仓库中启动真实二进制，检查最终显示的状态与内容 |
+| Git 与差异输入 | 状态、revision、原始路径、对象字节与 attributes；调用差异库 | 在独立 Git 仓库中启动真实二进制，检查最终显示的状态与内容 |
 | 文档与显示模型 | kat 高亮适配、左右行对齐、折行、搜索和导航位置 | 保留必要的模型与适配器测试；用户可见错误优先通过终端回归验证 |
 | 终端界面 | 输入、焦点、滚动、颜色合成、取消与退出 | PTY 发送真实按键，vt100 检查屏幕文本；Ghostty 终端内核检查最终单元格颜色 |
 | 构建与安装 | 发布二进制、归档与安装路径 | CI 通过 `SIDEDIFF_E2E_BIN` 对实际 release 二进制运行同一套功能回归，并校验归档内容 |
@@ -32,7 +32,7 @@ kat 使用 [kat-parsers](https://github.com/happy-proto/kat-parsers) 统一提�
 
 ## 特殊状态
 
-- 新增与删除的缺失侧使用空设备，不读取同名无关工作区文件。
+- 新增与删除的缺失侧使用空字节和空设备路径元数据，不读取同名无关工作区文件。
 - 暂存删除或重命名后重建的 HEAD 路径在临时 index 中恢复，由 Git 原生算法计算重写、重命名和复制；真实 index 与用户文件不参与写入。
 - mode `160000` 是子模块 gitlink，只显示指针与脏状态，不作为父仓库 blob 读取。
 - 子模块与普通文件互换时，gitlink 侧保留元数据，文件侧显示新增或删除内容。
@@ -47,11 +47,11 @@ kat 使用 [kat-parsers](https://github.com/happy-proto/kat-parsers) 统一提�
 
 ## 当前边界
 
-- 结构化差异依赖 difftastic 的实验性 JSON 接口；当前验证版本为 0.71.0。启动探测只能确认 JSON 选项存在，不能证明其他版本的 schema 兼容。
+- 结构化差异依赖 [happy-proto/difftastic](https://github.com/happy-proto/difftastic) 的内部 JSON／字节接口，上游基线为 0.71.0；具体 Git 提交由 Cargo.lock 锁定。库接口、上游同步和 parser 兼容性由 fork 维护。
 - 文件超过 256 KiB 时跳过语法高亮，仍计算和显示差异。该阈值不是整个文件加载的内存上限。
-- 当前按文件串行计算，完成后进入完整浏览界面；加载期间可取消。大量文件或巨大文本仍可能需要较多时间和内存。
+- 默认最多 4 个文件并行，完成后进入完整浏览界面；准入限制和可调整参数见 [性能与资源边界](performance.md)。差异结果仍全部保留，输入预算不能直接换算为进程 RSS 上限。
 - 渲染缓存保留当前文件的完整布局，但每帧只复制可见行，滚动位置不受 u16 行数上限限制。
 - 子模块不递归 diff，冲突不提供三方合并编辑；程序是只读查看器。
 - 鼠标事件关闭；侧栏为平面文件列表，不提供目录折叠。
 
-这些边界以实际源码为准。优化差异引擎或库化接入前，应先测量真实工作负载，再决定是否承担额外维护成本。
+这些边界以实际源码为准。普通内容通路不创建临时文件，但聚合枚举仍可能创建临时 Git index，因此不能声称整个进程零磁盘写入。

@@ -1,4 +1,4 @@
-//! 加载线程的子进程执行；退出 TUI 时回收正在运行的 Git/difft。
+//! 加载线程的子进程执行；退出 TUI 时回收正在运行的 Git。
 use std::{
     io::Read,
     process::{Command, Output, Stdio},

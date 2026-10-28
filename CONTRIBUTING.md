@@ -5,7 +5,7 @@
 ## 环境
 
 - 通过 rustup 安装 stable Rust；[rust-toolchain.toml](rust-toolchain.toml) 声明 rustfmt 与 Clippy。
-- 安装 Git、difftastic 0.71.0 和 [mise](https://mise.jdx.dev/)。
+- 安装 Git 和 [mise](https://mise.jdx.dev/)。difftastic 以 Git 库依赖编入程序，不需要单独安装 CLI。
 - 在仓库运行 `mise install` 安装开发工具。
 - 开发任务统一使用 `mise run <任务>`，无需启用 shell 集成。
 
