@@ -654,8 +654,8 @@ dependencies = [
 
 [[package]]
 name = "difftastic"
-version = "0.71.0"
-source = "git+https://github.com/happy-proto/difftastic.git#ab357154e6b087eb7cfc796dcd45c0e22937edfe"
+version = "0.72.0"
+source = "git+https://github.com/happy-proto/difftastic.git#e627e4fcea070279f36d9f9991bcee8d604bf735"
 dependencies = [
  "bumpalo",
  "cc",
@@ -704,7 +704,6 @@ dependencies = [
  "tree-sitter-erlang",
  "tree-sitter-fish",
  "tree-sitter-fortran",
- "tree-sitter-fsharp",
  "tree-sitter-gleam",
  "tree-sitter-go",
  "tree-sitter-haskell",
@@ -714,6 +713,7 @@ dependencies = [
  "tree-sitter-javascript",
  "tree-sitter-json",
  "tree-sitter-julia",
+ "tree-sitter-kotlin-sg",
  "tree-sitter-language",
  "tree-sitter-lua",
  "tree-sitter-make",
@@ -738,7 +738,6 @@ dependencies = [
  "tree-sitter-swift",
  "tree-sitter-toml-ng",
  "tree-sitter-typescript",
- "tree-sitter-verilog",
  "tree-sitter-vhdl",
  "tree-sitter-xml",
  "tree-sitter-yaml",
@@ -4189,16 +4188,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tree-sitter-fsharp"
-version = "0.3.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87affbae0d85926cebaa1abb18660904540708ab2c9ed7547f4809e6188125db"
-dependencies = [
- "cc",
- "tree-sitter-language",
-]
-
-[[package]]
 name = "tree-sitter-gleam"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4220,9 +4209,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-haskell"
-version = "0.23.1"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "977c51e504548cba13fc27cb5a2edab2124cf6716a1934915d07ab99523b05a4"
+checksum = "781de30e0d1ec8e6db4ed799d36ce1cedaf4684374dada45ebe2a8ea44c3f814"
 dependencies = [
  "cc",
  "tree-sitter-language",
@@ -5804,6 +5793,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-kotlin-sg"
+version = "0.4.1"
+source = "git+https://github.com/happy-proto/difftastic.git#e627e4fcea070279f36d9f9991bcee8d604bf735"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "tree-sitter-language"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6034,16 +6032,6 @@ name = "tree-sitter-typescript"
 version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff"
-dependencies = [
- "cc",
- "tree-sitter-language",
-]
-
-[[package]]
-name = "tree-sitter-verilog"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4e7e0360395852f1f6ff5b7b82c72dc6557d181073188df1d60ec469ea69c66"
 dependencies = [
  "cc",
  "tree-sitter-language",

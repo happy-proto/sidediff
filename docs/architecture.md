@@ -47,7 +47,7 @@ kat 使用 [kat-parsers](https://github.com/happy-proto/kat-parsers) 统一提�
 
 ## 当前边界
 
-- 结构化差异依赖 [happy-proto/difftastic](https://github.com/happy-proto/difftastic) 的内部 JSON／字节接口，上游基线为 0.71.0；具体 Git 提交由 Cargo.lock 锁定。库接口、上游同步和 parser 兼容性由 fork 维护。
+- 结构化差异依赖 [happy-proto/difftastic](https://github.com/happy-proto/difftastic) 的内部 JSON／字节接口，fork 默认跟随上游 master 主线，每轮固定上游提交，具体依赖由 Cargo.lock 锁定。库接口、上游同步和 parser 兼容性由 fork 维护。Smali、F#、Verilog 随上游回退为行级差异，Kotlin 使用上游新的 parser。
 - 文件超过 256 KiB 时跳过语法高亮，仍计算和显示差异。该阈值不是整个文件加载的内存上限。
 - 默认最多 4 个文件并行，完成后进入完整浏览界面；准入限制和可调整参数见 [性能与资源边界](performance.md)。差异结果仍全部保留，输入预算不能直接换算为进程 RSS 上限。
 - 渲染缓存保留当前文件的完整布局，但每帧只复制可见行，滚动位置不受 u16 行数上限限制。
