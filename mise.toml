@@ -33,4 +33,4 @@ zig = "0.16.0"
 
 [tasks.install]
 description = "从当前源码安装 sidediff"
-run = "cargo install --path . --locked"
+run = "cargo +stable install --path . --locked"
