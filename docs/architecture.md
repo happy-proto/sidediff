@@ -7,7 +7,8 @@
 3. 在内容读取前按大小、累计体积和文件数准入；gix 读取历史 blob 及 Git attributes，工作区读取原文件或符号链接目标文本。字节直接交给 difftastic 库，普通文件不物化差异内容临时文件。默认最多 4 个文件并行计算，按 Git 原始顺序收集结果。
 4. difft JSON 决定行对齐、差异范围与 hunk；[kat_adapter.rs](../src/kat_adapter.rs) 通过 kat 的 `PreparedDocument` 接口提供高亮与嵌套区域背景。高亮适配不承担差异计算。
 5. [model.rs](../src/model.rs) 合成左右行、折行、搜索与导航状态；[ui.rs](../src/ui.rs) 用 Ratatui 绘制当前可见行。变更底色优先于嵌套区域背景。
-6. [app.rs](../src/app.rs) 在加载线程工作时处理取消输入；[subprocess.rs](../src/subprocess.rs) 使用 Unix 进程组或 Windows Job Object 回收被取消的 Git 及其子进程。终端退出守卫恢复备用屏幕、光标与 raw mode；库内正在执行的单文件计算需要完成后才能回收加载线程。
+6. [app.rs](../src/app.rs) 在独立加载线程工作时处理取消输入；[loading.rs](../src/loading.rs) 共享阶段、计数、活动文件和计时。[subprocess.rs](../src/subprocess.rs) 注册活动 Git 进程组，取消时同步终止并回收 Git 及其子进程，不依赖计算线程继续轮询。终端退出守卫恢复备用屏幕、光标与 raw mode；退出时不 join 不可中断的库计算，主进程结束后由操作系统清理剩余计算线程。
+7. `--profile` 使用相同加载路径，不创建 TUI；报告阶段墙钟时间、并行环节累计时间和逐文件耗时，Ctrl-c 输出部分报告。`--json` 仅与 `--profile` 一起使用，保留全部 revision、路径与比较选项语义。
 
 Git 路径在访问、比较与去重时保留原始字节；不可解码字节、控制字符和 U+FFFD 等需要消歧的字符只在展示时转义。
 

@@ -22,6 +22,7 @@ clap = { version = "4.6.0", features = ["derive"] }
 clap_complete = { version = "4.6.0", features = ["unstable-dynamic"] }
 command-group = "5.0.1"
 crossterm = "0.29.0"
+ctrlc = "3.5.2"
 difftastic = { git = "https://github.com/happy-proto/difftastic.git" }
 encoding_rs = "0.8.42"
 gix = "0.87.1"

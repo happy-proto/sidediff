@@ -4,14 +4,11 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, atomic::Ordering},
 };
 
+use crate::loading::measure;
 use anyhow::{Context, Result, bail};
-use difftastic::profile::measure;
 use gix::bstr::ByteSlice;
 use rayon::prelude::*;
 use serde::Deserialize;
@@ -55,7 +52,8 @@ pub struct DiffRequest {
     pub difft_context: Option<usize>,
     pub worktree_root: PathBuf,
     pub invocation_dir: Option<PathBuf>,
-    pub cancellation: Arc<AtomicBool>,
+    pub cancellation: Arc<crate::subprocess::Cancellation>,
+    pub progress: Arc<crate::loading::Progress>,
     pub uses_worktree: bool,
     pub relative_root: Option<PathBuf>,
     pub pathspecs: Vec<OsString>,
@@ -92,7 +90,13 @@ fn rev_parse_path(option: &str) -> Result<PathBuf> {
 }
 
 pub fn load_diffs(request: &DiffRequest) -> Result<Vec<FileDiff>> {
-    load_diffs_with_limits(request, DiffLimits::from_env()?)
+    crate::loading::context(&request.progress, None, || {
+        let result = load_diffs_with_limits(request, DiffLimits::from_env()?);
+        if result.is_ok() {
+            request.progress.stage("Ready");
+        }
+        result
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -165,6 +169,7 @@ fn load_diffs_with_limits(request: &DiffRequest, limits: DiffLimits) -> Result<V
         }
     }
     let request = &resolved_request;
+    request.progress.stage("Enumerating changes");
     let mut records = measure("sidediff.enumerate", || load_raw_records(request))?;
     // Git 在未暂存模式可能同时输出同一路径的 U 和 M；保留冲突身份。
     let conflicts = records
@@ -175,6 +180,8 @@ fn load_diffs_with_limits(request: &DiffRequest, limits: DiffLimits) -> Result<V
     records.retain(|record| {
         record.status == DiffStatus::Unmerged || !conflicts.contains(&record.old_path)
     });
+    request.progress.plan(records.len());
+    request.progress.stage("Opening object database");
     let mut inspection_repo = measure("sidediff.open_gix", || -> Result<_> {
         Ok(gix::discover_with_environment_overrides(
             &request.worktree_root,
@@ -183,6 +190,7 @@ fn load_diffs_with_limits(request: &DiffRequest, limits: DiffLimits) -> Result<V
     inspection_repo.objects.ignore_replacements = true;
     let replacements = gix_replacements(&inspection_repo)?;
     // 在读取内容或 batch 预取前准入，按 Git 顺序分配本次加载的预算。
+    request.progress.stage("Checking size limits");
     let skipped = measure("sidediff.size_limits", || {
         plan_diff_load(&records, request, &inspection_repo, &replacements, limits)
     })?;
@@ -198,6 +206,7 @@ fn load_diffs_with_limits(request: &DiffRequest, limits: DiffLimits) -> Result<V
             .cloned()
             .map_err(|err| anyhow::anyhow!(err.clone()))
     })?;
+    request.progress.stage("Reading attributes");
     let attributes = measure("sidediff.gix_attributes", || {
         gix_binary_attributes(&inspection_repo, &paths, request)
     })?;
@@ -207,20 +216,31 @@ fn load_diffs_with_limits(request: &DiffRequest, limits: DiffLimits) -> Result<V
         replacements,
     };
     let gix_repo = inspection_repo.into_sync();
+    request.progress.stage("Computing files");
     let render = |index: usize, repo: &gix::Repository| -> Result<FileDiff> {
         let record = &records[index];
-        let mut rendered = if let Some(reason) = &skipped[index] {
-            metadata_file(record, vec![reason.clone()])
-        } else {
-            render_record(record, request, &resources, repo)?
-        };
-        if merge_first_parent {
-            rendered.metadata_lines.insert(
-                0,
-                "Merge comparison: first parent -> merge commit".to_string(),
-            );
+        let path = display_git_path(record.display_path());
+        if request.cancellation.load(Ordering::Relaxed) {
+            bail!("diff loading cancelled");
         }
-        Ok(rendered)
+        request.progress.start_file(index, path);
+        crate::loading::context(&request.progress, Some(index), || {
+            let mut rendered = if let Some(reason) = &skipped[index] {
+                metadata_file(record, vec![reason.clone()])
+            } else {
+                render_record(record, request, &resources, repo)?
+            };
+            if merge_first_parent {
+                rendered.metadata_lines.insert(
+                    0,
+                    "Merge comparison: first parent -> merge commit".to_string(),
+                );
+            }
+            request
+                .progress
+                .finish_file(index, skipped[index].is_some());
+            Ok(rendered)
+        })
     };
     let jobs = std::env::var("SIDEDIFF_DIFF_JOBS")
         .ok()
@@ -228,6 +248,7 @@ fn load_diffs_with_limits(request: &DiffRequest, limits: DiffLimits) -> Result<V
         .transpose()?
         .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get().min(4)));
     anyhow::ensure!(jobs > 0, "SIDEDIFF_DIFF_JOBS must be positive");
+    request.progress.workers(jobs.min(records.len()));
     if jobs == 1 || records.len() <= 1 {
         let repo = gix_read_handle(&gix_repo);
         return (0..records.len())
@@ -1067,6 +1088,7 @@ fn render_bytes(
             read_side_bytes(record, false, request, repo, replacements)?,
         ))
     })?;
+    crate::loading::input_bytes(lhs.data.len() + rhs.data.len());
     let output = measure("sidediff.difft", || {
         engine.diff_slices(
             &display_git_path(record.display_path()),
@@ -1112,6 +1134,7 @@ fn metadata_file(record: &RawRecord, metadata_lines: Vec<String>) -> FileDiff {
         path: display_git_path(record.display_path()),
         old_path: record.rename_from(),
         status: record.status,
+        line_diff_reason: None,
         metadata_lines,
         hunks: Vec::new(),
         lhs_syntax: Vec::new(),
@@ -1218,6 +1241,7 @@ fn build_file_diff(
     context: usize,
 ) -> Result<FileDiff> {
     let path = display_git_path(record.display_path());
+    let line_diff_reason = line_diff_reason(&decoded.language);
     let resolved_language = resolved_display_language(&decoded.language, &path);
 
     let mut metadata_lines = Vec::new();
@@ -1256,6 +1280,7 @@ fn build_file_diff(
             path,
             old_path: record.rename_from(),
             status: record.status,
+            line_diff_reason: None,
             metadata_lines,
             hunks: Vec::new(),
             lhs_syntax: Vec::new(),
@@ -1364,12 +1389,27 @@ fn build_file_diff(
         path,
         old_path: record.rename_from(),
         status: record.status,
+        line_diff_reason,
         metadata_lines,
         hunks,
         lhs_syntax,
         rhs_syntax,
         lhs_document,
         rhs_document,
+    })
+}
+
+fn line_diff_reason(language: &str) -> Option<String> {
+    if language == "Text" {
+        return Some("structural comparison is unavailable for this file type".to_string());
+    }
+    let reason = language.strip_prefix("Text (")?.strip_suffix(')')?;
+    Some(if reason == "exceeded DFT_GRAPH_LIMIT" {
+        "structural comparison exceeded the graph limit".to_string()
+    } else if let Some(size) = reason.strip_suffix(" exceeded DFT_BYTE_LIMIT") {
+        format!("file size {size} exceeded the structural comparison byte limit")
+    } else {
+        reason.replace("DFT_PARSE_ERROR_LIMIT", "the parse error limit")
     })
 }
 
@@ -3427,6 +3467,7 @@ mod tests {
             worktree_root: repo.to_path_buf(),
             invocation_dir: None,
             cancellation: Default::default(),
+            progress: Default::default(),
             uses_worktree,
             relative_root: None,
             pathspecs: Vec::new(),

@@ -1,10 +1,6 @@
 use std::{
     io,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-        mpsc,
-    },
+    sync::{Arc, mpsc},
     thread,
     time::Duration,
 };
@@ -51,21 +47,37 @@ fn load_with_ui(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     request: git_diff::DiffRequest,
 ) -> Result<Option<Vec<crate::model::FileDiff>>> {
-    thread::scope(|scope| {
-        // 任何退出路径都先通知执行器，再由 scope 等待加载线程回收子进程。
-        let _cancel = CancelOnDrop(request.cancellation.clone());
+    let cancellation = request.cancellation.clone();
+    let progress = request.progress.clone();
+    wait_for_load(
+        cancellation,
+        move || git_diff::load_diffs(&request),
+        || {
+            terminal.draw(|frame| {
+                frame.render_widget(Paragraph::new(progress.display()), frame.area())
+            })?;
+            Ok(!(event::poll(Duration::from_millis(50))?
+                && matches!(event::read()?, Event::Key(key) if key.kind == KeyEventKind::Press &&
+                (key.code == KeyCode::Char('q') || key.code == KeyCode::Esc ||
+                 (key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL))))))
+        },
+    )
+}
+
+fn wait_for_load<T: Send + 'static>(
+    cancellation: Arc<crate::subprocess::Cancellation>,
+    load: impl FnOnce() -> Result<T> + Send + 'static,
+    mut tick: impl FnMut() -> Result<bool>,
+) -> Result<Option<T>> {
+    {
+        let _cancel = CancelOnDrop(cancellation);
         let (tx, rx) = mpsc::channel();
-        scope.spawn(move || {
-            let result = git_diff::load_diffs(&request);
-            let _ = tx.send(result);
+        // 取消不能等待不可中断的库调用；Git 由 Cancellation 主动回收。
+        // 主程序退出后操作系统终止剩余计算线程，线程不访问终端或借用栈数据。
+        thread::spawn(move || {
+            let _ = tx.send(load());
         });
         loop {
-            terminal.draw(|frame| {
-                frame.render_widget(
-                    Paragraph::new("Loading differences…  q / Ctrl-c to cancel"),
-                    frame.area(),
-                )
-            })?;
             match rx.try_recv() {
                 Ok(result) => return result.map(Some),
                 Err(mpsc::TryRecvError::Disconnected) => {
@@ -73,25 +85,18 @@ fn load_with_ui(
                 }
                 Err(mpsc::TryRecvError::Empty) => {}
             }
-            if event::poll(Duration::from_millis(50))?
-                && let Event::Key(key) = event::read()?
-                && key.kind == KeyEventKind::Press
-                && (key.code == KeyCode::Char('q')
-                    || key.code == KeyCode::Esc
-                    || (key.code == KeyCode::Char('c')
-                        && key.modifiers.contains(KeyModifiers::CONTROL)))
-            {
+            if !tick()? {
                 return Ok(None);
             }
         }
-    })
+    }
 }
 
-struct CancelOnDrop(Arc<AtomicBool>);
+struct CancelOnDrop(Arc<crate::subprocess::Cancellation>);
 
 impl Drop for CancelOnDrop {
     fn drop(&mut self) {
-        self.0.store(true, Ordering::Relaxed);
+        self.0.cancel();
     }
 }
 
@@ -180,5 +185,27 @@ impl Drop for TerminalCleanupGuard {
         if self.raw_mode {
             let _ = disable_raw_mode();
         }
+    }
+}
+
+#[cfg(test)]
+mod loading_tests {
+    #[test]
+    fn cancellation_does_not_wait_for_in_process_computation() {
+        let start = std::time::Instant::now();
+        let result = super::wait_for_load(
+            Default::default(),
+            || {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                Ok(())
+            },
+            || Ok(false),
+        )
+        .unwrap();
+        assert!(result.is_none());
+        assert!(
+            start.elapsed() < std::time::Duration::from_millis(500),
+            "cancel waited for computation"
+        );
     }
 }

@@ -5,7 +5,9 @@ mod error;
 mod git_diff;
 mod input;
 mod kat_adapter;
+mod loading;
 mod model;
+mod profile;
 mod subprocess;
 mod ui;
 
@@ -36,6 +38,9 @@ fn run() -> Result<()> {
         request.relative_root = Some(git_diff::invocation_prefix()?);
     }
     request.invocation_dir = Some(invocation_dir);
+    if cli.profile {
+        return profile::run(request, cli.json);
+    }
     if std::env::var_os("SIDEDIFF_BENCHMARK_LOAD").is_some() {
         return benchmark_load(&request);
     }

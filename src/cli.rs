@@ -23,6 +23,13 @@ Enable shell completion by adding one of these lines to your shell config:
     disable_help_subcommand = true
 )]
 pub struct Cli {
+    /// 只测量加载过程，不进入终端界面。
+    #[arg(long, help = "Analyze loading time without opening the TUI")]
+    pub profile: bool,
+    /// 以 JSON 输出加载报告。
+    #[arg(long, requires = "profile", help = "Emit the loading report as JSON")]
+    pub json: bool,
+
     #[command(flatten)]
     pub diff: DiffArgs,
 }
@@ -184,6 +191,7 @@ impl DiffArgs {
             worktree_root: PathBuf::new(),
             invocation_dir: None,
             cancellation: Default::default(),
+            progress: Default::default(),
             uses_worktree: !self.cached && self.revisions.len() <= 1,
             relative_root,
             pathspecs: self.paths.clone(),

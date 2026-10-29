@@ -28,11 +28,15 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut AppState) {
         },
         app.route == Route::FileList,
         false,
+        None,
     );
     let diff_block = pane_block(
         "Diff",
         app.route == Route::Diff || (!app.show_sidebar && !app.is_compact_layout()),
         !app.show_sidebar && !app.is_compact_layout(),
+        app.current_file()
+            .and_then(|file| file.line_diff_reason.as_ref())
+            .map(|_| "line diff"),
     );
     let diff_inner = diff_block.inner(diff_area);
     app.update_ui_layout(UiLayout {
@@ -268,7 +272,12 @@ fn draw_help(frame: &mut Frame<'_>, area: Rect, app: &AppState) {
     );
 }
 
-fn pane_block(title: &str, focused: bool, emphasize: bool) -> Block<'static> {
+fn pane_block(
+    title: &str,
+    focused: bool,
+    emphasize: bool,
+    annotation: Option<&str>,
+) -> Block<'static> {
     let border_style = if focused {
         Style::default().fg(dracula_purple())
     } else if emphasize {
@@ -283,10 +292,15 @@ fn pane_block(title: &str, focused: bool, emphasize: bool) -> Block<'static> {
         dimmed_style()
     };
 
+    let mut title = vec![Span::styled(format!(" {title} "), title_style)];
+    if let Some(annotation) = annotation {
+        title.push(Span::styled(format!("· {annotation} "), dimmed_style()));
+    }
+
     Block::default()
         .borders(Borders::ALL)
         .border_style(border_style)
-        .title(Span::styled(format!(" {title} "), title_style))
+        .title(Line::from(title))
 }
 
 fn dracula_foreground() -> Color {
