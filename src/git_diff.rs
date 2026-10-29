@@ -4,12 +4,14 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{Arc, atomic::Ordering},
 };
 
+use crate::loading::measure;
 use anyhow::{Context, Result, bail};
+use gix::bstr::ByteSlice;
+use rayon::prelude::*;
 use serde::Deserialize;
-use tempfile::{NamedTempFile, TempDir};
 
 use crate::{
     error::AppError,
@@ -28,6 +30,12 @@ type ChangedLines = HashMap<AlignedLineKey, DifftJsonLine>;
 type VisibleLineSets = (HashSet<u32>, HashSet<u32>);
 type MergedChunk = (Vec<DifftJsonLine>, i64, VisibleLineSets);
 
+thread_local! {
+    // 每个加载线程只初始化一次差异配置，不修改进程环境。
+    static DIFFT_LIBRARY: std::result::Result<difftastic::JsonDiff, String> =
+        difftastic::JsonDiff::from_env().map_err(|err| err.to_string());
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiffMode {
     WorktreeAggregate,
@@ -43,7 +51,8 @@ pub struct DiffRequest {
     pub difft_context: Option<usize>,
     pub worktree_root: PathBuf,
     pub invocation_dir: Option<PathBuf>,
-    pub cancellation: Arc<AtomicBool>,
+    pub cancellation: Arc<crate::subprocess::Cancellation>,
+    pub progress: Arc<crate::loading::Progress>,
     pub uses_worktree: bool,
     pub relative_root: Option<PathBuf>,
     pub pathspecs: Vec<OsString>,
@@ -79,45 +88,43 @@ fn rev_parse_path(option: &str) -> Result<PathBuf> {
     path_from_git_bytes(output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout))
 }
 
-pub fn ensure_difftastic(cancellation: &AtomicBool) -> Result<()> {
-    let output =
-        match crate::subprocess::output(Command::new("difft").arg("--version"), cancellation) {
-            Ok(output) => output,
-            Err(err)
-                if err
-                    .downcast_ref::<std::io::Error>()
-                    .is_some_and(|err| err.kind() == std::io::ErrorKind::NotFound) =>
-            {
-                return Err(AppError::MissingDifftastic.into());
-            }
-            Err(err) => return Err(err).context("failed to run `difft --version`"),
-        };
-
-    if !output.status.success() {
-        return Err(AppError::MissingDifftastic.into());
-    }
-
-    // 直接探测 JSON 模式是否可用，不依赖特定版本号；--help 可以只解析参数而不创建临时文件。
-    let probe = crate::subprocess::output(
-        Command::new("difft")
-            .env("DFT_UNSTABLE", "yes")
-            .args(["--display", "json", "--help"]),
-        cancellation,
-    )
-    .context("failed to probe `difft --display json` support")?;
-
-    if !probe.status.success() {
-        return Err(AppError::CommandFailed {
-            cmd: "DFT_UNSTABLE=yes difft --display json --help".to_string(),
-            stderr: String::from_utf8_lossy(&probe.stderr).trim().to_string(),
+pub fn load_diffs(request: &DiffRequest) -> Result<Vec<FileDiff>> {
+    crate::loading::context(&request.progress, None, || {
+        let result = load_diffs_with_limits(request, DiffLimits::from_env()?);
+        if result.is_ok() {
+            request.progress.stage("Ready");
         }
-        .into());
-    }
-
-    Ok(())
+        result
+    })
 }
 
-pub fn load_diffs(request: &DiffRequest) -> Result<Vec<FileDiff>> {
+#[derive(Clone, Copy)]
+struct DiffLimits {
+    max_file_bytes: u64,
+    max_total_bytes: u64,
+    max_files: u64,
+}
+
+impl DiffLimits {
+    fn from_env() -> Result<Self> {
+        fn read(name: &str, default: u64) -> Result<u64> {
+            match std::env::var(name) {
+                Ok(value) => value
+                    .parse()
+                    .with_context(|| format!("{name} must be a non-negative integer")),
+                Err(std::env::VarError::NotPresent) => Ok(default),
+                Err(err) => Err(err).with_context(|| format!("invalid {name}")),
+            }
+        }
+        Ok(Self {
+            max_file_bytes: read("SIDEDIFF_MAX_FILE_BYTES", 10 * 1024 * 1024)?,
+            max_total_bytes: read("SIDEDIFF_MAX_TOTAL_BYTES", 128 * 1024 * 1024)?,
+            max_files: read("SIDEDIFF_MAX_FILES", 5_000)?,
+        })
+    }
+}
+
+fn load_diffs_with_limits(request: &DiffRequest, limits: DiffLimits) -> Result<Vec<FileDiff>> {
     let mut resolved_request = request.clone();
     let mut merge_first_parent = false;
     if request.mode == DiffMode::Revisions && request.uses_worktree {
@@ -161,7 +168,8 @@ pub fn load_diffs(request: &DiffRequest) -> Result<Vec<FileDiff>> {
         }
     }
     let request = &resolved_request;
-    let mut records = load_raw_records(request)?;
+    request.progress.stage("Enumerating changes");
+    let mut records = measure("sidediff.enumerate", || load_raw_records(request))?;
     // Git 在未暂存模式可能同时输出同一路径的 U 和 M；保留冲突身份。
     let conflicts = records
         .iter()
@@ -171,21 +179,198 @@ pub fn load_diffs(request: &DiffRequest) -> Result<Vec<FileDiff>> {
     records.retain(|record| {
         record.status == DiffStatus::Unmerged || !conflicts.contains(&record.old_path)
     });
-    let temp_dir = TempDir::new().context("failed to create temporary diff directory")?;
-    let mut files = Vec::with_capacity(records.len());
-
-    for record in records {
-        let mut rendered = render_record(&record, request, temp_dir.path())?;
-        if merge_first_parent {
-            rendered.metadata_lines.insert(
-                0,
-                "Merge comparison: first parent -> merge commit".to_string(),
-            );
+    request.progress.plan(records.len());
+    request.progress.stage("Opening object database");
+    let mut inspection_repo = measure("sidediff.open_gix", || -> Result<_> {
+        Ok(gix::discover_with_environment_overrides(
+            &request.worktree_root,
+        )?)
+    })?;
+    inspection_repo.objects.ignore_replacements = true;
+    let replacements = gix_replacements(&inspection_repo)?;
+    // 在读取内容或 batch 预取前准入，按 Git 顺序分配本次加载的预算。
+    request.progress.stage("Checking size limits");
+    let skipped = measure("sidediff.size_limits", || {
+        plan_diff_load(&records, request, &inspection_repo, &replacements, limits)
+    })?;
+    let paths = records
+        .iter()
+        .zip(&skipped)
+        .filter(|(_, reason)| reason.is_none())
+        .map(|(record, _)| record.display_path().to_path_buf())
+        .collect::<Vec<_>>();
+    let mut engine = DIFFT_LIBRARY.with(|engine| {
+        engine
+            .as_ref()
+            .cloned()
+            .map_err(|err| anyhow::anyhow!(err.clone()))
+    })?;
+    request.progress.stage("Reading attributes");
+    let attributes = measure("sidediff.gix_attributes", || {
+        gix_binary_attributes(&inspection_repo, &paths, request)
+    })?;
+    engine.set_binary_attributes(attributes);
+    let resources = LoadResources {
+        engine,
+        replacements,
+    };
+    let gix_repo = inspection_repo.into_sync();
+    request.progress.stage("Computing files");
+    let render = |index: usize, repo: &gix::Repository| -> Result<FileDiff> {
+        let record = &records[index];
+        let path = display_git_path(record.display_path());
+        if request.cancellation.load(Ordering::Relaxed) {
+            bail!("diff loading cancelled");
         }
-        files.push(rendered);
+        request.progress.start_file(index, path);
+        crate::loading::context(&request.progress, Some(index), || {
+            let mut rendered = if let Some(reason) = &skipped[index] {
+                metadata_file(record, vec![reason.clone()])
+            } else {
+                render_record(record, request, &resources, repo)?
+            };
+            if merge_first_parent {
+                rendered.metadata_lines.insert(
+                    0,
+                    "Merge comparison: first parent -> merge commit".to_string(),
+                );
+            }
+            request
+                .progress
+                .finish_file(index, skipped[index].is_some());
+            Ok(rendered)
+        })
+    };
+    let jobs = std::env::var("SIDEDIFF_DIFF_JOBS")
+        .ok()
+        .map(|value| value.parse::<usize>())
+        .transpose()?
+        .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get().min(4)));
+    anyhow::ensure!(jobs > 0, "SIDEDIFF_DIFF_JOBS must be positive");
+    request.progress.workers(jobs.min(records.len()));
+    if jobs == 1 || records.len() <= 1 {
+        let repo = gix_read_handle(&gix_repo);
+        return (0..records.len())
+            .map(|index| render(index, &repo))
+            .collect();
     }
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(jobs.min(records.len()))
+        .build()?;
+    pool.install(|| {
+        (0..records.len())
+            .into_par_iter()
+            .map_init(
+                || gix_read_handle(&gix_repo),
+                |repo, index| render(index, repo),
+            )
+            .collect()
+    })
+}
 
-    Ok(files)
+fn plan_diff_load(
+    records: &[RawRecord],
+    request: &DiffRequest,
+    repo: &gix::Repository,
+    replacements: &HashMap<gix::ObjectId, gix::ObjectId>,
+    limits: DiffLimits,
+) -> Result<Vec<Option<String>>> {
+    let mut files = 0;
+    let mut remaining = limits.max_total_bytes;
+    records
+        .iter()
+        .map(|record| {
+            if request.cancellation.load(Ordering::Relaxed) {
+                bail!("diff loading cancelled");
+            }
+            if files >= limits.max_files {
+                return Ok(Some(format!(
+                    "Content omitted: file count limit ({}) reached",
+                    limits.max_files
+                )));
+            }
+            let (old, new) = if record.status == DiffStatus::Unmerged {
+                // 冲突视图仅展开当前工作区，不读取 index 的冲突 stages。
+                let size = if request.uses_worktree {
+                    worktree_input_size(request, record.display_path())?.unwrap_or(0)
+                } else {
+                    0
+                };
+                (0, size)
+            } else {
+                (
+                    side_input_size(record, true, request, repo, replacements)?,
+                    side_input_size(record, false, request, repo, replacements)?,
+                )
+            };
+            if old.max(new) > limits.max_file_bytes {
+                return Ok(Some(format!(
+                    "Content omitted: file size ({} bytes) exceeds per-side limit ({} bytes)",
+                    old.max(new), limits.max_file_bytes
+                )));
+            }
+            let bytes = old.saturating_add(new);
+            if bytes > remaining {
+                return Ok(Some(format!(
+                    "Content omitted: combined old/new contents exceed total input limit ({} bytes)",
+                    limits.max_total_bytes
+                )));
+            }
+            files += 1;
+            remaining -= bytes;
+            Ok(None)
+        })
+        .collect()
+}
+
+fn worktree_input_size(request: &DiffRequest, path: &Path) -> Result<Option<u64>> {
+    let path = resolve_worktree_path(request, path);
+    let Some(metadata) = worktree_entry_metadata(request, &path) else {
+        return Ok(None);
+    };
+    if metadata.file_type().is_symlink() {
+        return Ok(Some(
+            fs::read_link(&path)?.as_os_str().as_encoded_bytes().len() as u64,
+        ));
+    }
+    Ok(metadata.is_file().then_some(metadata.len()))
+}
+
+fn side_input_size(
+    record: &RawRecord,
+    old: bool,
+    request: &DiffRequest,
+    repo: &gix::Repository,
+    replacements: &HashMap<gix::ObjectId, gix::ObjectId>,
+) -> Result<u64> {
+    let (oid, mode, path) = if old {
+        (&record.old_oid, &record.old_mode, record.old_path.as_path())
+    } else {
+        (&record.new_oid, &record.new_mode, record.display_path())
+    };
+    if matches!(mode.as_str(), "000000" | "160000" | "040000") || (old && oid == NULL_OID) {
+        return Ok(0);
+    }
+    if !old && request.uses_worktree {
+        if let Some(size) = worktree_input_size(request, path)? {
+            return Ok(size);
+        }
+        let path = resolve_worktree_path(request, path);
+        if worktree_entry_metadata(request, &path).is_some_and(|metadata| !metadata.is_dir()) {
+            // render_record 不读取 FIFO 等特殊工作区条目。
+            return Ok(0);
+        }
+    }
+    if oid == NULL_OID {
+        return Ok(0);
+    }
+    let oid = resolve_blob_id(gix::ObjectId::from_hex(oid.as_bytes())?, replacements)?;
+    let header = repo.find_header(oid)?;
+    anyhow::ensure!(
+        header.kind() == gix::objs::Kind::Blob,
+        "expected blob {oid}"
+    );
+    Ok(header.size())
 }
 
 fn load_raw_records(request: &DiffRequest) -> Result<Vec<RawRecord>> {
@@ -368,7 +553,7 @@ fn create_aggregate_index(
     request: &DiffRequest,
     records: &[RawRecord],
     conflict_paths: &HashSet<&PathBuf>,
-) -> Result<Option<TempDir>> {
+) -> Result<Option<crate::subprocess::TemporaryDirectory>> {
     let restored = records
         .iter()
         .filter(|record| {
@@ -381,7 +566,10 @@ fn create_aggregate_index(
         return Ok(None);
     }
     // 只修改临时 index，让 Git 计算重写、重命名与复制，保留真实 index 的状态。
-    let directory = TempDir::new().context("failed to create aggregate index directory")?;
+    let directory = request
+        .cancellation
+        .temporary_directory()
+        .context("failed to create aggregate index directory")?;
     let index_path = directory.path().join("index");
     let output = crate::subprocess::output(
         Command::new("git")
@@ -638,7 +826,12 @@ fn worktree_mode(path: &Path) -> Result<String> {
     }
 }
 
-fn render_record(record: &RawRecord, request: &DiffRequest, temp_root: &Path) -> Result<FileDiff> {
+fn render_record(
+    record: &RawRecord,
+    request: &DiffRequest,
+    resources: &LoadResources,
+    repo: &gix::Repository,
+) -> Result<FileDiff> {
     if record.status == DiffStatus::Unmerged {
         let mut file = metadata_file(
             record,
@@ -647,8 +840,7 @@ fn render_record(record: &RawRecord, request: &DiffRequest, temp_root: &Path) ->
         if request.uses_worktree {
             let path = resolve_worktree_path(request, record.display_path());
             if worktree_file_exists(request, &path) {
-                let (readable, _temporary) = materialize_worktree_side(&path, temp_root)?;
-                let source = fs::read(&readable)
+                let source = read_worktree_bytes(&path)
                     .with_context(|| format!("failed to read conflict {}", path.display()))?;
                 file.metadata_lines
                     .push("Current worktree conflict contents (not a staged snapshot)".to_string());
@@ -688,7 +880,7 @@ fn render_record(record: &RawRecord, request: &DiffRequest, temp_root: &Path) ->
             text_record.new_oid = NULL_OID.to_string();
             text_record.status = DiffStatus::Deleted;
         }
-        let mut file = render_record(&text_record, request, temp_root)?;
+        let mut file = render_record(&text_record, request, resources, repo)?;
         file.status = record.status;
         file.metadata_lines.splice(0..0, submodule.metadata_lines);
         file.metadata_lines.insert(
@@ -720,7 +912,7 @@ fn render_record(record: &RawRecord, request: &DiffRequest, temp_root: &Path) ->
         text_record.new_mode = "000000".to_string();
         text_record.new_oid = NULL_OID.to_string();
         text_record.status = DiffStatus::Deleted;
-        let mut file = render_record(&text_record, request, temp_root)?;
+        let mut file = render_record(&text_record, request, resources, repo)?;
         file.status = record.status;
         file.metadata_lines.insert(
             0,
@@ -728,26 +920,206 @@ fn render_record(record: &RawRecord, request: &DiffRequest, temp_root: &Path) ->
         );
         return Ok(file);
     }
-    let temp_files = MaterializedPair::from_record(record, request, temp_root)?;
-    let output = run_difft_json(record, &temp_files, &request.cancellation)?;
-    let decoded = decode_difft_json(&output)?;
-    // 二进制只呈现元数据，避免为不可显示的内容再创建 UTF-8 副本。
-    let binary = decoded.language.eq_ignore_ascii_case("binary");
-    build_file_diff(
+    render_bytes(
         record,
-        decoded,
-        if binary {
-            None
-        } else {
-            read_text_side(temp_files.old_path())?
-        },
-        if binary {
-            None
-        } else {
-            read_text_side(temp_files.new_path())?
-        },
-        request.difft_context.unwrap_or(3),
+        request,
+        &resources.engine,
+        repo,
+        &resources.replacements,
     )
+}
+
+fn gix_read_handle(shared: &gix::ThreadSafeRepository) -> gix::Repository {
+    let mut repo = shared.to_thread_local();
+    // 0.87.1 的 replacement_objects_refs_prefix 默认关闭替换，且开关语义反向。
+    // 统一禁用底层隐式替换，读取时应用本次加载显式取得的原生 replacement 映射。
+    repo.objects.ignore_replacements = true;
+    repo
+}
+
+fn gix_replacements(repo: &gix::Repository) -> Result<HashMap<gix::ObjectId, gix::ObjectId>> {
+    let mut result = HashMap::new();
+    if std::env::var_os("GIT_NO_REPLACE_OBJECTS").is_some()
+        || repo.config_snapshot().try_boolean("core.useReplaceRefs")? == Some(false)
+    {
+        return Ok(result);
+    }
+    let prefix = repo
+        .config_snapshot()
+        .string("gitoxide.objects.replaceRefBase")
+        .unwrap_or_else(|| "refs/replace/".into());
+    let references = repo.references()?;
+    for reference in references.prefixed(prefix.as_bstr())? {
+        let reference = reference.map_err(anyhow::Error::from_boxed)?;
+        let name = reference.name().as_bstr();
+        if let Some(suffix) = name.strip_prefix(prefix.as_slice())
+            && let Ok(source) = gix::ObjectId::from_hex(suffix)
+            && let Some(target) = reference.target().try_id()
+        {
+            result.insert(source, target.to_owned());
+        }
+    }
+    Ok(result)
+}
+
+fn resolve_blob_id(
+    mut oid: gix::ObjectId,
+    replacements: &HashMap<gix::ObjectId, gix::ObjectId>,
+) -> Result<gix::ObjectId> {
+    // 与 Git 的 MAXREPLACEDEPTH 一致，最多进行 5 轮查找。
+    for _ in 0..5 {
+        let Some(next) = replacements.get(&oid) else {
+            return Ok(oid);
+        };
+        oid = *next;
+    }
+    bail!("replace depth too high for {oid}")
+}
+
+fn gix_binary_attributes(
+    repo: &gix::Repository,
+    paths: &[PathBuf],
+    request: &DiffRequest,
+) -> Result<HashMap<String, bool>> {
+    if paths.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let index = repo.index_or_empty()?;
+    let mut attributes = repo.attributes_only(
+        &index,
+        gix::worktree::stack::state::attributes::Source::WorktreeThenIdMapping,
+    )?;
+    let mut matches = attributes.selected_attribute_matches(["diff", "binary"]);
+    let mut result = HashMap::with_capacity(paths.len());
+    for path in paths {
+        // attributes 使用真实仓库路径；展示前缀和转义仅用于差异引擎的索引键。
+        let absolute = resolve_worktree_path(request, path);
+        let relative = absolute.strip_prefix(&request.worktree_root)?;
+        attributes
+            .at_path(relative, None)?
+            .matching_attributes(&mut matches);
+        let binary = matches.iter_selected().any(|m| {
+            matches!(
+                (m.assignment.name.as_str(), m.assignment.state),
+                ("diff", gix::attrs::StateRef::Unset) | ("binary", gix::attrs::StateRef::Set)
+            )
+        });
+        result.insert(display_git_path(path), binary);
+    }
+    Ok(result)
+}
+
+fn read_worktree_bytes(path: &Path) -> Result<Vec<u8>> {
+    if path.symlink_metadata()?.file_type().is_symlink() {
+        Ok(fs::read_link(path)?.as_os_str().as_encoded_bytes().to_vec())
+    } else {
+        fs::read(path).with_context(|| format!("failed to read {}", path.display()))
+    }
+}
+
+struct ByteSide {
+    data: Vec<u8>,
+    path: PathBuf,
+    missing: bool,
+}
+
+fn read_side_bytes(
+    record: &RawRecord,
+    old: bool,
+    request: &DiffRequest,
+    repo: &gix::Repository,
+    replacements: &HashMap<gix::ObjectId, gix::ObjectId>,
+) -> Result<ByteSide> {
+    let (oid, mode, path) = if old {
+        (&record.old_oid, &record.old_mode, record.old_path.as_path())
+    } else {
+        (&record.new_oid, &record.new_mode, record.display_path())
+    };
+    let absent = || ByteSide {
+        data: Vec::new(),
+        path: DEV_NULL.into(),
+        missing: true,
+    };
+    if mode == "000000" || (old && oid == NULL_OID) {
+        return Ok(absent());
+    }
+    let path = resolve_worktree_path(request, path);
+    if !old && request.uses_worktree && worktree_file_exists(request, &path) {
+        return Ok(ByteSide {
+            data: read_worktree_bytes(&path)?,
+            path,
+            missing: false,
+        });
+    }
+    if oid == NULL_OID {
+        return Ok(absent());
+    }
+    let blob = measure("sidediff.gix_blob", || -> Result<_> {
+        let oid = resolve_blob_id(gix::ObjectId::from_hex(oid.as_bytes())?, replacements)?;
+        Ok(repo.find_blob(oid)?)
+    })?;
+    Ok(ByteSide {
+        data: blob.detach().data,
+        path,
+        missing: false,
+    })
+}
+
+fn render_bytes(
+    record: &RawRecord,
+    request: &DiffRequest,
+    engine: &difftastic::JsonDiff,
+    repo: &gix::Repository,
+    replacements: &HashMap<gix::ObjectId, gix::ObjectId>,
+) -> Result<FileDiff> {
+    if request.cancellation.load(Ordering::Relaxed) {
+        bail!("diff loading cancelled");
+    }
+    let (lhs, rhs) = measure("sidediff.read_bytes", || -> Result<_> {
+        Ok((
+            read_side_bytes(record, true, request, repo, replacements)?,
+            read_side_bytes(record, false, request, repo, replacements)?,
+        ))
+    })?;
+    crate::loading::input_bytes(lhs.data.len() + rhs.data.len());
+    let output = measure("sidediff.difft", || {
+        engine.diff_slices(
+            &display_git_path(record.display_path()),
+            &lhs.path,
+            &rhs.path,
+            &lhs.data,
+            &rhs.data,
+        )
+    })
+    .map_err(|err| anyhow::anyhow!(err.to_string()))?;
+    if request.cancellation.load(Ordering::Relaxed) {
+        bail!("diff loading cancelled");
+    }
+    let decoded = measure("sidediff.json_decode", || decode_difft_json(&output))?;
+    let binary = decoded.language.eq_ignore_ascii_case("binary");
+    let (lhs, rhs) = measure("sidediff.decode_text", || -> Result<_> {
+        Ok((
+            if lhs.missing || binary {
+                None
+            } else {
+                Some(decode_text(&lhs.data)?)
+            },
+            if rhs.missing || binary {
+                None
+            } else {
+                Some(decode_text(&rhs.data)?)
+            },
+        ))
+    })?;
+    measure("sidediff.build_view", || {
+        build_file_diff(
+            record,
+            decoded,
+            lhs,
+            rhs,
+            request.difft_context.unwrap_or(3),
+        )
+    })
 }
 
 fn metadata_file(record: &RawRecord, metadata_lines: Vec<String>) -> FileDiff {
@@ -755,6 +1127,7 @@ fn metadata_file(record: &RawRecord, metadata_lines: Vec<String>) -> FileDiff {
         path: display_git_path(record.display_path()),
         old_path: record.rename_from(),
         status: record.status,
+        line_diff_reason: None,
         metadata_lines,
         hunks: Vec::new(),
         lhs_syntax: Vec::new(),
@@ -809,71 +1182,10 @@ fn render_submodule(record: &RawRecord, request: &DiffRequest) -> Result<FileDif
     Ok(metadata_file(record, metadata))
 }
 
-fn run_difft_json(
-    record: &RawRecord,
-    files: &MaterializedPair,
-    cancellation: &AtomicBool,
-) -> Result<Vec<u8>> {
-    let mut command = Command::new("difft");
-    command.env("DFT_COLOR", "never");
-    command.env("DFT_UNSTABLE", "yes");
-    command.env("DFT_EXIT_CODE", "false");
-    command.env("DFT_CHECK_ONLY", "false");
-    command.arg("--display");
-    command.arg("json");
-    command.arg("--");
-
-    match record.status {
-        DiffStatus::Renamed => {
-            command.arg(display_git_path(&record.old_path));
-            command.arg(files.old_path());
-            command.arg(record.old_oid.as_str());
-            command.arg(record.old_mode.as_str());
-            command.arg(files.new_path());
-            command.arg(record.new_oid.as_str());
-            command.arg(record.new_mode.as_str());
-            command.arg(display_git_path(record.display_path()));
-            command.arg("");
-        }
-        _ => {
-            command.arg(display_git_path(record.display_path()));
-            command.arg(files.old_path());
-            command.arg(record.old_oid.as_str());
-            command.arg(record.old_mode.as_str());
-            command.arg(files.new_path());
-            command.arg(record.new_oid.as_str());
-            command.arg(record.new_mode.as_str());
-        }
-    }
-
-    let output = crate::subprocess::output(&mut command, cancellation)
-        .context("failed to run difftastic")?;
-    if output.status.success() {
-        return Ok(output.stdout);
-    }
-
-    Err(AppError::CommandFailed {
-        cmd: "difft".to_string(),
-        stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
-    }
-    .into())
-}
-
 fn decode_difft_json(output: &[u8]) -> Result<DifftJsonFile> {
     serde_json::from_slice(output).context("failed to decode difft JSON output")
 }
 
-fn read_text_side(path: &Path) -> Result<Option<String>> {
-    if path == Path::new(DEV_NULL) {
-        return Ok(None);
-    }
-
-    let bytes = fs::read(path)
-        .with_context(|| format!("failed to read materialized file {}", path.display()))?;
-    Ok(Some(decode_text(&bytes)?))
-}
-
-/// 与当前 difft 的文本解码顺序一致；这里只处理已经被其判定为文本的内容。
 fn decode_text(bytes: &[u8]) -> Result<String> {
     if let Ok(text) = std::str::from_utf8(bytes) {
         return Ok(text.to_owned());
@@ -922,6 +1234,7 @@ fn build_file_diff(
     context: usize,
 ) -> Result<FileDiff> {
     let path = display_git_path(record.display_path());
+    let line_diff_reason = line_diff_reason(&decoded.language);
     let resolved_language = resolved_display_language(&decoded.language, &path);
 
     let mut metadata_lines = Vec::new();
@@ -960,6 +1273,7 @@ fn build_file_diff(
             path,
             old_path: record.rename_from(),
             status: record.status,
+            line_diff_reason: None,
             metadata_lines,
             hunks: Vec::new(),
             lhs_syntax: Vec::new(),
@@ -1042,31 +1356,53 @@ fn build_file_diff(
         );
     }
 
-    let lhs_document = kat_adapter::prepare_document(
-        &display_git_path(&record.old_path),
-        lhs_src.as_deref().unwrap_or_default(),
-    )?;
-    let rhs_document =
-        kat_adapter::prepare_document(&path, rhs_src.as_deref().unwrap_or_default())?;
-    let lhs_syntax = kat_adapter::split_spans(
-        lhs_src.as_deref().unwrap_or_default(),
-        lhs_document.as_ref(),
-    );
-    let rhs_syntax = kat_adapter::split_spans(
-        rhs_src.as_deref().unwrap_or_default(),
-        rhs_document.as_ref(),
-    );
+    let lhs_document = measure("kat.prepare", || {
+        kat_adapter::prepare_document(
+            &display_git_path(&record.old_path),
+            lhs_src.as_deref().unwrap_or_default(),
+        )
+    })?;
+    let rhs_document = measure("kat.prepare", || {
+        kat_adapter::prepare_document(&path, rhs_src.as_deref().unwrap_or_default())
+    })?;
+    let lhs_syntax = measure("kat.split_spans", || {
+        kat_adapter::split_spans(
+            lhs_src.as_deref().unwrap_or_default(),
+            lhs_document.as_ref(),
+        )
+    });
+    let rhs_syntax = measure("kat.split_spans", || {
+        kat_adapter::split_spans(
+            rhs_src.as_deref().unwrap_or_default(),
+            rhs_document.as_ref(),
+        )
+    });
 
     Ok(FileDiff {
         path,
         old_path: record.rename_from(),
         status: record.status,
+        line_diff_reason,
         metadata_lines,
         hunks,
         lhs_syntax,
         rhs_syntax,
         lhs_document,
         rhs_document,
+    })
+}
+
+fn line_diff_reason(language: &str) -> Option<String> {
+    if language == "Text" {
+        return Some("structural comparison is unavailable for this file type".to_string());
+    }
+    let reason = language.strip_prefix("Text (")?.strip_suffix(')')?;
+    Some(if reason == "exceeded DFT_GRAPH_LIMIT" {
+        "structural comparison exceeded the graph limit".to_string()
+    } else if let Some(size) = reason.strip_suffix(" exceeded DFT_BYTE_LIMIT") {
+        format!("file size {size} exceeded the structural comparison byte limit")
+    } else {
+        reason.replace("DFT_PARSE_ERROR_LIMIT", "the parse error limit")
     })
 }
 
@@ -2007,138 +2343,9 @@ impl RawRecord {
     }
 }
 
-struct MaterializedPair {
-    _old_temp: Option<NamedTempFile>,
-    _new_temp: Option<NamedTempFile>,
-    old_path: PathBuf,
-    new_path: PathBuf,
-}
-
-impl MaterializedPair {
-    fn from_record(record: &RawRecord, request: &DiffRequest, temp_root: &Path) -> Result<Self> {
-        let old_path = materialize_side(
-            &record.old_oid,
-            &record.old_path,
-            true,
-            request,
-            temp_root,
-            &record.old_mode,
-        )?;
-        let new_display = record.display_path();
-        let new_path = materialize_side(
-            &record.new_oid,
-            new_display,
-            false,
-            request,
-            temp_root,
-            &record.new_mode,
-        )?;
-
-        Ok(Self {
-            _old_temp: old_path.1,
-            _new_temp: new_path.1,
-            old_path: old_path.0,
-            new_path: new_path.0,
-        })
-    }
-
-    fn old_path(&self) -> &Path {
-        &self.old_path
-    }
-
-    fn new_path(&self) -> &Path {
-        &self.new_path
-    }
-}
-
-fn materialize_side(
-    oid: &str,
-    path: &Path,
-    old_side: bool,
-    request: &DiffRequest,
-    temp_root: &Path,
-    mode: &str,
-) -> Result<(PathBuf, Option<NamedTempFile>)> {
-    if mode == "000000" {
-        return Ok((PathBuf::from(DEV_NULL), None));
-    }
-    if oid == NULL_OID {
-        if old_side {
-            return Ok((PathBuf::from(DEV_NULL), None));
-        }
-
-        if request.uses_worktree {
-            let worktree_path = resolve_worktree_path(request, path);
-            if worktree_file_exists(request, &worktree_path) {
-                return materialize_worktree_side(&worktree_path, temp_root);
-            }
-        }
-        return Ok((PathBuf::from(DEV_NULL), None));
-    }
-
-    if !old_side && request.uses_worktree {
-        let worktree_path = resolve_worktree_path(request, path);
-        if worktree_file_exists(request, &worktree_path) {
-            return materialize_worktree_side(&worktree_path, temp_root);
-        }
-    }
-
-    let data = read_blob(request, oid)?;
-    let file = NamedTempFile::new_in(temp_root)
-        .with_context(|| format!("failed to create temporary file for {}", path.display()))?;
-    fs::write(file.path(), data)
-        .with_context(|| format!("failed to materialize blob for {}", path.display()))?;
-
-    Ok((file.path().to_path_buf(), Some(file)))
-}
-
-fn materialize_worktree_side(
-    worktree_path: &Path,
-    temp_root: &Path,
-) -> Result<(PathBuf, Option<NamedTempFile>)> {
-    if worktree_path.symlink_metadata()?.file_type().is_symlink() {
-        let target = fs::read_link(worktree_path).with_context(|| {
-            format!(
-                "failed to read symlink target for {}",
-                worktree_path.display()
-            )
-        })?;
-        let file = NamedTempFile::new_in(temp_root).with_context(|| {
-            format!(
-                "failed to create temporary file for symlink {}",
-                worktree_path.display()
-            )
-        })?;
-        fs::write(file.path(), target.as_os_str().as_encoded_bytes()).with_context(|| {
-            format!(
-                "failed to materialize symlink target for {}",
-                worktree_path.display()
-            )
-        })?;
-        return Ok((file.path().to_path_buf(), Some(file)));
-    }
-
-    Ok((worktree_path.to_path_buf(), None))
-}
-
-fn read_blob(request: &DiffRequest, oid: &str) -> Result<Vec<u8>> {
-    let output = crate::subprocess::output(
-        Command::new("git")
-            .current_dir(&request.worktree_root)
-            .args(["cat-file", "-p", oid]),
-        &request.cancellation,
-    )
-    .with_context(|| format!("failed to read blob `{oid}`"))?;
-
-    if output.status.success() {
-        return Ok(output.stdout);
-    }
-
-    Err(AppError::CommandFailed {
-        cmd: format!("git cat-file -p {oid}"),
-        stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
-    }
-    .into())
+struct LoadResources {
+    engine: difftastic::JsonDiff,
+    replacements: HashMap<gix::ObjectId, gix::ObjectId>,
 }
 
 fn resolve_worktree_path(request: &DiffRequest, path: &Path) -> PathBuf {
@@ -2178,8 +2385,303 @@ fn worktree_file_exists(request: &DiffRequest, path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use tempfile::TempDir;
 
     use super::*;
+
+    #[test]
+    fn load_limits_skip_oversized_old_and_new_contents() {
+        let temp = TempDir::new().unwrap();
+        let repo = temp.path();
+        init_repo(repo);
+        fs::write(repo.join("old.txt"), "x".repeat(65)).unwrap();
+        fs::write(repo.join("new.txt"), "before\n").unwrap();
+        fs::write(repo.join("small.txt"), "before\n").unwrap();
+        commit_all(repo, "init");
+        run(repo, ["git", "gc", "--prune=now"]);
+        fs::write(repo.join("old.txt"), "after\n").unwrap();
+        fs::write(repo.join("new.txt"), "x".repeat(65)).unwrap();
+        fs::write(repo.join("small.txt"), "after\n").unwrap();
+        let files = load_diffs_with_limits(
+            &request(repo, vec!["HEAD".into()], true, DiffMode::Revisions),
+            DiffLimits {
+                max_file_bytes: 64,
+                max_total_bytes: 1_000,
+                max_files: 10,
+            },
+        )
+        .unwrap();
+        assert_eq!(files.len(), 3);
+        for path in ["old.txt", "new.txt"] {
+            let file = files.iter().find(|file| file.path == path).unwrap();
+            assert!(file.hunks.is_empty());
+            assert!(file_text(file).contains("per-side limit (64 bytes)"));
+        }
+        let small = files.iter().find(|file| file.path == "small.txt").unwrap();
+        assert!(file_text(small).contains("before"));
+        assert!(file_text(small).contains("after"));
+    }
+
+    #[test]
+    fn load_limits_count_both_sides_and_keep_later_files_that_fit() {
+        let temp = TempDir::new().unwrap();
+        let repo = temp.path();
+        init_repo(repo);
+        for (path, size) in [("a.txt", 8), ("b.txt", 12), ("c.txt", 2)] {
+            fs::write(repo.join(path), "a".repeat(size)).unwrap();
+        }
+        commit_all(repo, "init");
+        for (path, size) in [("a.txt", 8), ("b.txt", 12), ("c.txt", 2)] {
+            fs::write(repo.join(path), "b".repeat(size)).unwrap();
+        }
+        let request = request(repo, vec!["HEAD".into()], true, DiffMode::Revisions);
+        let files = load_diffs_with_limits(
+            &request,
+            DiffLimits {
+                max_file_bytes: 12,
+                max_total_bytes: 20,
+                max_files: 10,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            files
+                .iter()
+                .map(|file| file.path.as_str())
+                .collect::<Vec<_>>(),
+            ["a.txt", "b.txt", "c.txt"]
+        );
+        assert!(!files[0].hunks.is_empty());
+        assert!(files[1].hunks.is_empty());
+        assert!(file_text(&files[1]).contains("total input limit (20 bytes)"));
+        assert!(!files[2].hunks.is_empty());
+
+        let files = load_diffs_with_limits(
+            &request,
+            DiffLimits {
+                max_file_bytes: 12,
+                max_total_bytes: 100,
+                max_files: 1,
+            },
+        )
+        .unwrap();
+        assert_eq!(files.len(), 3);
+        assert!(!files[0].hunks.is_empty());
+        for file in &files[1..] {
+            assert!(file.hunks.is_empty());
+            assert!(file_text(file).contains("file count limit (1) reached"));
+        }
+    }
+
+    #[test]
+    fn load_limits_skip_large_untracked_file_without_loading_contents() {
+        let temp = TempDir::new().unwrap();
+        let repo = temp.path();
+        init_repo(repo);
+        fs::write(repo.join("base.txt"), "base\n").unwrap();
+        commit_all(repo, "init");
+        // 仅设置长度，不生成大段测试数据。
+        fs::File::create(repo.join("large.bin"))
+            .unwrap()
+            .set_len(16 * 1024 * 1024)
+            .unwrap();
+        let files = load_diffs_with_limits(
+            &request(repo, vec![], true, DiffMode::WorktreeAggregate),
+            DiffLimits {
+                max_file_bytes: 10 * 1024 * 1024,
+                max_total_bytes: 128 * 1024 * 1024,
+                max_files: 5_000,
+            },
+        )
+        .unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "large.bin");
+        assert_eq!(files[0].status, DiffStatus::Created);
+        assert!(files[0].hunks.is_empty());
+        assert!(file_text(&files[0]).contains("file size (16777216 bytes)"));
+    }
+
+    #[test]
+    fn load_limits_apply_to_conflict_worktree_contents() {
+        let temp = TempDir::new().unwrap();
+        let repo = temp.path();
+        init_repo(repo);
+        fs::write(repo.join("conflict.txt"), "base\n").unwrap();
+        commit_all(repo, "init");
+        run(repo, ["git", "checkout", "-q", "-b", "other"]);
+        fs::write(repo.join("conflict.txt"), "other\n").unwrap();
+        commit_all(repo, "other");
+        run(repo, ["git", "checkout", "-q", "-"]);
+        fs::write(repo.join("conflict.txt"), "main\n").unwrap();
+        commit_all(repo, "main");
+        let merge = Command::new("git")
+            .args(["merge", "other"])
+            .current_dir(repo)
+            .output()
+            .unwrap();
+        assert!(!merge.status.success());
+        let files = load_diffs_with_limits(
+            &request(repo, vec![], true, DiffMode::Unstaged),
+            DiffLimits {
+                max_file_bytes: 8,
+                max_total_bytes: 100,
+                max_files: 10,
+            },
+        )
+        .unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].status, DiffStatus::Unmerged);
+        assert!(files[0].hunks.is_empty());
+        assert!(file_text(&files[0]).contains("per-side limit (8 bytes)"));
+    }
+
+    #[test]
+    fn gix_blob_loading_preserves_packed_objects_and_replace_refs() {
+        let temp = TempDir::new().unwrap();
+        let repo = temp.path();
+        init_repo(repo);
+        fs::write(repo.join("value.txt"), "ORIGINAL_BLOB\n").unwrap();
+        commit_all(repo, "original");
+        let original =
+            String::from_utf8(run_output(repo, ["git", "rev-parse", "HEAD:value.txt"])).unwrap();
+        fs::write(repo.join("replacement"), "REPLACED_BLOB\n").unwrap();
+        let replacement = String::from_utf8(run_output(
+            repo,
+            ["git", "hash-object", "-w", "replacement"],
+        ))
+        .unwrap();
+        fs::remove_file(repo.join("replacement")).unwrap();
+        run(
+            repo,
+            ["git", "replace", original.trim(), replacement.trim()],
+        );
+        run(repo, ["git", "gc", "--prune=now"]);
+        fs::write(repo.join("value.txt"), "CURRENT_WORKTREE\n").unwrap();
+        let files = load_diffs(&request(
+            repo,
+            vec!["HEAD".into()],
+            true,
+            DiffMode::Revisions,
+        ))
+        .unwrap();
+        let text = file_text(&files[0]);
+        assert!(text.contains("REPLACED_BLOB"), "{text}");
+        assert!(text.contains("CURRENT_WORKTREE"), "{text}");
+        assert!(!text.contains("ORIGINAL_BLOB"), "{text}");
+        run(repo, ["git", "config", "core.useReplaceRefs", "false"]);
+        let files = load_diffs(&request(
+            repo,
+            vec!["HEAD".into()],
+            true,
+            DiffMode::Revisions,
+        ))
+        .unwrap();
+        let text = file_text(&files[0]);
+        assert!(text.contains("ORIGINAL_BLOB"), "{text}");
+        assert!(!text.contains("REPLACED_BLOB"), "{text}");
+    }
+
+    #[test]
+    fn gix_blob_loading_handles_linked_worktree_with_alternate_objects() {
+        let temp = TempDir::new().unwrap();
+        let source = temp.path().join("source");
+        fs::create_dir(&source).unwrap();
+        init_repo(&source);
+        fs::write(source.join("value.txt"), "ALTERNATE_ORIGINAL\n").unwrap();
+        commit_all(&source, "original");
+        run(
+            temp.path(),
+            ["git", "clone", "-q", "--shared", "source", "clone"],
+        );
+        let clone = temp.path().join("clone");
+        run(
+            &clone,
+            [
+                "git",
+                "worktree",
+                "add",
+                "-q",
+                "--detach",
+                "../linked",
+                "HEAD",
+            ],
+        );
+        let linked = temp.path().join("linked");
+        fs::write(linked.join("value.txt"), "LINKED_WORKTREE\n").unwrap();
+        let files = load_diffs(&request(
+            &linked,
+            vec!["HEAD".into()],
+            true,
+            DiffMode::Revisions,
+        ))
+        .unwrap();
+        let text = file_text(&files[0]);
+        assert!(text.contains("ALTERNATE_ORIGINAL"), "{text}");
+        assert!(text.contains("LINKED_WORKTREE"), "{text}");
+    }
+
+    #[test]
+    fn gix_attributes_match_native_git_precedence_and_index_fallback() {
+        let temp = TempDir::new().unwrap();
+        let repo_path = temp.path().join("repo");
+        fs::create_dir(&repo_path).unwrap();
+        init_repo(&repo_path);
+        let global = temp.path().join("global-attributes");
+        fs::write(&global, "*.txt -diff\n").unwrap();
+        run(
+            &repo_path,
+            [
+                "git",
+                "config",
+                "core.attributesFile",
+                global.to_str().unwrap(),
+            ],
+        );
+        fs::create_dir(repo_path.join("sub")).unwrap();
+        fs::write(
+            repo_path.join(".gitattributes"),
+            "root.txt diff\nmacro.txt binary\n",
+        )
+        .unwrap();
+        fs::write(repo_path.join("sub/.gitattributes"), "normal.txt diff\n").unwrap();
+        commit_all(&repo_path, "attributes");
+        // 缺失的工作区 attributes 应从 index 获取；info/attributes 优先级更高。
+        fs::remove_file(repo_path.join("sub/.gitattributes")).unwrap();
+        fs::write(repo_path.join(".git/info/attributes"), "root.txt -diff\n").unwrap();
+        let paths = [
+            "global.txt",
+            "root.txt",
+            "macro.txt",
+            "sub/normal.txt",
+            "spaced name.txt",
+            "line\nname.txt",
+        ]
+        .map(PathBuf::from);
+        let repo = gix::discover_with_environment_overrides(&repo_path).unwrap();
+        let attrs = gix_binary_attributes(
+            &repo,
+            &paths,
+            &request(&repo_path, vec![], true, DiffMode::WorktreeAggregate),
+        )
+        .unwrap();
+        let native = Command::new("git")
+            .current_dir(&repo_path)
+            .args(["check-attr", "-z", "diff", "binary", "--"])
+            .args(&paths)
+            .output()
+            .unwrap();
+        assert!(native.status.success());
+        let fields = native.stdout.split(|b| *b == 0).collect::<Vec<_>>();
+        for group in fields.as_chunks::<6>().0 {
+            let path = std::str::from_utf8(group[0]).unwrap();
+            let binary = (group[1] == b"diff" && group[2] == b"unset")
+                || (group[4] == b"binary" && group[5] == b"set");
+            assert_eq!(attrs[&display_git_path(Path::new(path))], binary, "{path}");
+        }
+        assert!(attrs["root.txt"]);
+        assert!(attrs["macro.txt"]);
+        assert!(!attrs["sub/normal.txt"]);
+    }
 
     #[test]
     fn parse_modified_record() {
@@ -2215,38 +2717,6 @@ mod tests {
     fn parse_status_token_rejects_unknown_status() {
         let err = parse_status_token("X").unwrap_err().to_string();
         assert!(err.contains("unsupported"));
-    }
-
-    #[test]
-    fn materialize_old_side_for_created_file_uses_dev_null() {
-        let temp = TempDir::new().unwrap();
-        let worktree_root = temp.path().to_path_buf();
-        fs::write(worktree_root.join("new.txt"), "hello\nworld\n").unwrap();
-
-        let request = DiffRequest {
-            revisions: Vec::new(),
-            git_args: vec!["HEAD".into()],
-            difft_context: None,
-            worktree_root,
-            invocation_dir: None,
-            cancellation: Default::default(),
-            uses_worktree: false,
-            relative_root: None,
-            pathspecs: Vec::new(),
-            mode: DiffMode::Revisions,
-        };
-
-        let (path, _temp) = materialize_side(
-            NULL_OID,
-            Path::new("new.txt"),
-            true,
-            &request,
-            temp.path(),
-            "000000",
-        )
-        .unwrap();
-
-        assert_eq!(path, PathBuf::from(DEV_NULL));
     }
 
     #[test]
@@ -2853,33 +3323,6 @@ mod tests {
         assert!(!rendered.contains("symlink-target-file-contents"));
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn materialize_side_preserves_worktree_symlink_payload() {
-        use std::os::unix::fs::symlink;
-
-        let temp = TempDir::new().unwrap();
-        let repo = temp.path();
-
-        init_repo(repo);
-        fs::write(repo.join("real.txt"), "actual file contents\n").unwrap();
-        symlink("real.txt", repo.join("link.txt")).unwrap();
-
-        let request = request(repo, vec!["HEAD".into()], true, DiffMode::Revisions);
-        let (path, _temp) = materialize_side(
-            "1111111111111111111111111111111111111111",
-            Path::new("link.txt"),
-            false,
-            &request,
-            temp.path(),
-            "120000",
-        )
-        .unwrap();
-
-        let contents = fs::read_to_string(path).unwrap();
-        assert_eq!(contents, "real.txt");
-    }
-
     #[test]
     fn load_diffs_handles_mixed_change_kinds_in_single_run() {
         let temp = TempDir::new().unwrap();
@@ -3018,6 +3461,7 @@ mod tests {
             worktree_root: repo.to_path_buf(),
             invocation_dir: None,
             cancellation: Default::default(),
+            progress: Default::default(),
             uses_worktree,
             relative_root: None,
             pathspecs: Vec::new(),

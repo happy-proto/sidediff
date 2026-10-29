@@ -29,10 +29,6 @@ runs:
         key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
         restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
     - uses: jdx/mise-action@v5
-    - uses: $/.github/actions/setup-difft
-      with:
-        target: x86_64-unknown-linux-gnu
-        sha256: 61aea5394a53c56f144637cf39b3a0c0dafa27769731745e5851ff276e6478da
     - name: 格式、Clippy 与 Actions lock 检查
       shell: bash
       env:

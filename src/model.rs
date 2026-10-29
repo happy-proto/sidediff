@@ -100,6 +100,7 @@ pub struct FileDiff {
     pub path: String,
     pub old_path: Option<String>,
     pub status: DiffStatus,
+    pub line_diff_reason: Option<String>,
     pub metadata_lines: Vec<String>,
     pub hunks: Vec<DiffHunk>,
     pub lhs_syntax: Vec<Vec<kat_adapter::SyntaxRange>>,
@@ -110,7 +111,7 @@ pub struct FileDiff {
 
 impl FileDiff {
     pub fn is_empty(&self) -> bool {
-        self.metadata_lines.is_empty() && self.hunks.is_empty()
+        self.line_diff_reason.is_none() && self.metadata_lines.is_empty() && self.hunks.is_empty()
     }
 
     pub fn display_name(&self) -> String {
@@ -1093,7 +1094,13 @@ fn render_file(file: &FileDiff, content_width: usize, tab_width: usize) -> Rende
     for meta in &file.metadata_lines {
         lines.push(Line::from(vec![Span::styled(meta.clone(), dimmed_style())]));
     }
-    if !file.metadata_lines.is_empty() && !file.hunks.is_empty() {
+    if let Some(reason) = &file.line_diff_reason {
+        lines.push(Line::from(Span::styled(
+            format!("Line diff: {reason}."),
+            dimmed_style(),
+        )));
+    }
+    if !lines.is_empty() && !file.hunks.is_empty() {
         lines.push(Line::default());
     }
 
@@ -1948,6 +1955,7 @@ mod tests {
             path: "x.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![
                 DiffHunk {
@@ -2021,6 +2029,7 @@ mod tests {
             path: "x.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![vec![kat_adapter::SyntaxRange {
@@ -2060,6 +2069,7 @@ mod tests {
             path: "x.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![],
@@ -2098,6 +2108,7 @@ mod tests {
             path: "x.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![vec![]],
@@ -2135,6 +2146,7 @@ mod tests {
             path: "justfile".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: kat_adapter::syntax_lines_for_test("justfile", source).unwrap(),
@@ -2188,6 +2200,7 @@ mod tests {
             path: "README.md".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![],
@@ -2234,6 +2247,7 @@ mod tests {
             path: "x.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![vec![]],
@@ -2277,6 +2291,7 @@ mod tests {
             path: "x.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![vec![
@@ -2341,6 +2356,7 @@ mod tests {
             path: "x.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![vec![]],
@@ -2381,6 +2397,7 @@ mod tests {
             path: "x.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![vec![]],
@@ -2427,6 +2444,7 @@ mod tests {
             path: "x.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![vec![], vec![]],
@@ -2488,6 +2506,7 @@ mod tests {
             path: "x.go".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![vec![]],
@@ -2562,6 +2581,7 @@ mod tests {
                 path: "new.rs".to_string(),
                 old_path: Some("old.rs".to_string()),
                 status: DiffStatus::Renamed,
+                line_diff_reason: None,
                 metadata_lines: vec![],
                 hunks: vec![],
                 lhs_syntax: vec![],
@@ -2866,6 +2886,7 @@ mod tests {
             path: "x.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![
                 DiffHunk {
@@ -2923,6 +2944,7 @@ mod tests {
             path: "blank.txt".to_string(),
             old_path: None,
             status: DiffStatus::Created,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![DiffHunk {
                 title: Some("1/1 --- Text".to_string()),
@@ -2974,6 +2996,7 @@ mod tests {
             path: "new.rs".to_string(),
             old_path: Some("old.rs".to_string()),
             status: DiffStatus::Renamed,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![],
@@ -2988,6 +3011,7 @@ mod tests {
             path: path.to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![],
             lhs_syntax: vec![],
@@ -3002,6 +3026,7 @@ mod tests {
             path: "big.rs".to_string(),
             old_path: None,
             status: DiffStatus::Modified,
+            line_diff_reason: None,
             metadata_lines: vec![],
             hunks: vec![DiffHunk {
                 title: None,

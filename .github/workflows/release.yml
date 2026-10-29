@@ -50,19 +50,15 @@ jobs:
           - runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             binary_ext: ""
-            difft_sha256: 61aea5394a53c56f144637cf39b3a0c0dafa27769731745e5851ff276e6478da
           - runner: macos-latest
             target: aarch64-apple-darwin
             binary_ext: ""
-            difft_sha256: 92acf8890543b6d6f436a87a7a5ec64f82a4b8dbe3a7e564c1e5cbfe60823bc7
           - runner: windows-latest
             target: x86_64-pc-windows-msvc
             binary_ext: .exe
-            difft_sha256: 9a979f9d96d739625a0fe69317f3197cc7bcef663a6d7195197d6c9bf96ed6f5
           - runner: windows-11-arm
             target: aarch64-pc-windows-msvc
             binary_ext: .exe
-            difft_sha256: fbf0497f654271f9c96dfc52f06aad2163ac391ee4050f9dab7b88cba2bd9e77
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -107,10 +103,6 @@ jobs:
           key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
       - uses: jdx/mise-action@v5
-      - uses: $/.github/actions/setup-difft
-        with:
-          target: ${{ matrix.target }}
-          sha256: ${{ matrix.difft_sha256 }}
       - name: 构建并检查二进制
         shell: bash
         env:
@@ -227,7 +219,7 @@ jobs:
           ${DEFAULT_BRANCH} 分支最近一次通过全部检查的持续构建。
 
           - Commit: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
-          - 运行依赖：Git，以及支持 JSON 输出的 difftastic（difft）。
+          - 运行依赖：Git。差异引擎已编入程序。
           EOF
           echo >> "${notes_file}"
           .github/scripts/release-binary-sizes.py "${RELEASE_ASSET_DIR}" >> "${notes_file}"
