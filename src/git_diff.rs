@@ -12,7 +12,6 @@ use anyhow::{Context, Result, bail};
 use gix::bstr::ByteSlice;
 use rayon::prelude::*;
 use serde::Deserialize;
-use tempfile::TempDir;
 
 use crate::{
     error::AppError,
@@ -198,7 +197,7 @@ fn load_diffs_with_limits(request: &DiffRequest, limits: DiffLimits) -> Result<V
         .iter()
         .zip(&skipped)
         .filter(|(_, reason)| reason.is_none())
-        .map(|(record, _)| display_git_path(record.display_path()))
+        .map(|(record, _)| record.display_path().to_path_buf())
         .collect::<Vec<_>>();
     let mut engine = DIFFT_LIBRARY.with(|engine| {
         engine
@@ -258,7 +257,7 @@ fn load_diffs_with_limits(request: &DiffRequest, limits: DiffLimits) -> Result<V
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(jobs.min(records.len()))
         .build()?;
-    let result = pool.install(|| {
+    pool.install(|| {
         (0..records.len())
             .into_par_iter()
             .map_init(
@@ -266,13 +265,7 @@ fn load_diffs_with_limits(request: &DiffRequest, limits: DiffLimits) -> Result<V
                 |repo, index| render(index, repo),
             )
             .collect()
-    });
-    if difftastic::profile::enabled() {
-        for stats in pool.broadcast(|_| difftastic::profile::snapshot()) {
-            difftastic::profile::merge(stats);
-        }
-    }
-    result
+    })
 }
 
 fn plan_diff_load(
@@ -560,7 +553,7 @@ fn create_aggregate_index(
     request: &DiffRequest,
     records: &[RawRecord],
     conflict_paths: &HashSet<&PathBuf>,
-) -> Result<Option<TempDir>> {
+) -> Result<Option<crate::subprocess::TemporaryDirectory>> {
     let restored = records
         .iter()
         .filter(|record| {
@@ -573,7 +566,10 @@ fn create_aggregate_index(
         return Ok(None);
     }
     // 只修改临时 index，让 Git 计算重写、重命名与复制，保留真实 index 的状态。
-    let directory = TempDir::new().context("failed to create aggregate index directory")?;
+    let directory = request
+        .cancellation
+        .temporary_directory()
+        .context("failed to create aggregate index directory")?;
     let index_path = directory.path().join("index");
     let output = crate::subprocess::output(
         Command::new("git")
@@ -982,7 +978,7 @@ fn resolve_blob_id(
 
 fn gix_binary_attributes(
     repo: &gix::Repository,
-    paths: &[String],
+    paths: &[PathBuf],
     request: &DiffRequest,
 ) -> Result<HashMap<String, bool>> {
     if paths.is_empty() {
@@ -994,16 +990,13 @@ fn gix_binary_attributes(
         gix::worktree::stack::state::attributes::Source::WorktreeThenIdMapping,
     )?;
     let mut matches = attributes.selected_attribute_matches(["diff", "binary"]);
-    let invocation_prefix = request
-        .command_dir()
-        .strip_prefix(&request.worktree_root)
-        .unwrap_or(Path::new(""));
     let mut result = HashMap::with_capacity(paths.len());
     for path in paths {
-        // 与此前 check-attr 的调用目录一致；display path 是其实际接收的字符串。
-        let relative = invocation_prefix.join(path);
+        // attributes 使用真实仓库路径；展示前缀和转义仅用于差异引擎的索引键。
+        let absolute = resolve_worktree_path(request, path);
+        let relative = absolute.strip_prefix(&request.worktree_root)?;
         attributes
-            .at_path(&relative, None)?
+            .at_path(relative, None)?
             .matching_attributes(&mut matches);
         let binary = matches.iter_selected().any(|m| {
             matches!(
@@ -1011,7 +1004,7 @@ fn gix_binary_attributes(
                 ("diff", gix::attrs::StateRef::Unset) | ("binary", gix::attrs::StateRef::Set)
             )
         });
-        result.insert(path.clone(), binary);
+        result.insert(display_git_path(path), binary);
     }
     Ok(result)
 }
@@ -2392,6 +2385,7 @@ fn worktree_file_exists(request: &DiffRequest, path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use tempfile::TempDir;
 
     use super::*;
 
@@ -2662,7 +2656,7 @@ mod tests {
             "spaced name.txt",
             "line\nname.txt",
         ]
-        .map(str::to_owned);
+        .map(PathBuf::from);
         let repo = gix::discover_with_environment_overrides(&repo_path).unwrap();
         let attrs = gix_binary_attributes(
             &repo,
@@ -2682,7 +2676,7 @@ mod tests {
             let path = std::str::from_utf8(group[0]).unwrap();
             let binary = (group[1] == b"diff" && group[2] == b"unset")
                 || (group[4] == b"binary" && group[5] == b"set");
-            assert_eq!(attrs[path], binary, "{path}");
+            assert_eq!(attrs[&display_git_path(Path::new(path))], binary, "{path}");
         }
         assert!(attrs["root.txt"]);
         assert!(attrs["macro.txt"]);

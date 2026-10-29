@@ -230,7 +230,7 @@ pub fn measure<T>(name: &'static str, f: impl FnOnce() -> T) -> T {
         active.phase_started = Instant::now();
     }
     let start = Instant::now();
-    let result = difftastic::profile::measure(name, f);
+    let result = f();
     if let Some((progress, _)) = current
         && progress.profile.load(Ordering::Relaxed)
     {

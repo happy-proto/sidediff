@@ -1,5 +1,6 @@
 //! 真实二进制的回归：每个场景都来自已复现的用户可见错误。
 use std::{
+    ffi::OsString,
     io::{Read, Write},
     num::NonZeroU16,
     path::{Path, PathBuf},
@@ -11,6 +12,10 @@ use std::{
 
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use tempfile::TempDir;
+
+fn sidediff_executable() -> OsString {
+    std::env::var_os("SIDEDIFF_E2E_BIN").unwrap_or_else(|| env!("CARGO_BIN_EXE_sidediff").into())
+}
 
 struct Repo(TempDir);
 
@@ -111,9 +116,7 @@ impl vt100::Callbacks for CursorReports {
 
 impl Session {
     fn start(cwd: &Path, args: &[&str], cols: u16, env: &[(&str, PathBuf)]) -> Self {
-        let executable = std::env::var_os("SIDEDIFF_E2E_BIN")
-            .unwrap_or_else(|| env!("CARGO_BIN_EXE_sidediff").into());
-        let mut command = CommandBuilder::new(executable);
+        let mut command = CommandBuilder::new(sidediff_executable());
         command.cwd(cwd);
         command.args(args);
         // Windows 上 portable-pty 默认重建注册表环境，显式继承进程环境以保留临时 PATH。
@@ -620,41 +623,91 @@ fn external_difft_is_not_invoked() {
 #[test]
 fn loading_can_be_cancelled_while_git_is_running() {
     use std::os::unix::fs::PermissionsExt;
-    let repo = Repo::dirty();
-    let tools = tempfile::tempdir().unwrap();
-    let real_git = std::process::Command::new("sh")
-        .args(["-c", "command -v git"])
-        .output()
-        .unwrap();
-    assert!(real_git.status.success());
-    let real_git = String::from_utf8(real_git.stdout).unwrap();
-    let git = tools.path().join("git");
-    // 仓库探测正常通过，仅 raw diff 枚举挂起，验证取消时回收整个进程组。
-    std::fs::write(&git, "#!/bin/sh\nif [ \"$1\" = diff ]; then\nsleep 8 &\ntouch \"$SIDEDIFF_TEST_MARKER\"\nwait\nfi\nexec \"$SIDEDIFF_TEST_REAL_GIT\" \"$@\"\n").unwrap();
-    std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let mut paths = vec![tools.path().to_path_buf()];
-    paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
-    let path = PathBuf::from(std::env::join_paths(paths).unwrap());
-    let marker = tools.path().join("git-started");
-    let mut session = Session::start(
-        repo.path(),
-        &[],
-        180,
-        &[
-            ("PATH", path),
-            ("SIDEDIFF_TEST_MARKER", marker.clone()),
-            ("SIDEDIFF_TEST_REAL_GIT", real_git.trim().into()),
-        ],
-    );
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while !marker.exists() && Instant::now() < deadline {
-        thread::sleep(Duration::from_millis(10));
+    for aggregate_index in [false, true] {
+        let repo = Repo::dirty();
+        if aggregate_index {
+            repo.git(&["mv", "base.txt", "renamed.txt"]);
+            repo.write("base.txt", "restored\n");
+        }
+        let tools = tempfile::tempdir().unwrap();
+        let real_git = std::process::Command::new("sh")
+            .args(["-c", "command -v git"])
+            .output()
+            .unwrap();
+        assert!(real_git.status.success());
+        let real_git = String::from_utf8(real_git.stdout).unwrap();
+        let git = tools.path().join("git");
+        // 分别挂起变更枚举与临时 index 更新，验证取消会回收进程及临时目录。
+        std::fs::write(&git, "#!/bin/sh\nif [ \"$1\" = \"$SIDEDIFF_TEST_BLOCK\" ] || [ \"$3\" = \"$SIDEDIFF_TEST_BLOCK\" ]; then\nprintf '%s' \"$GIT_INDEX_FILE\" > \"$SIDEDIFF_TEST_INDEX\"\nsleep 8 &\ntouch \"$SIDEDIFF_TEST_MARKER\"\nwait\nfi\nexec \"$SIDEDIFF_TEST_REAL_GIT\" \"$@\"\n").unwrap();
+        std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut paths = vec![tools.path().to_path_buf()];
+        paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
+        let path = PathBuf::from(std::env::join_paths(paths).unwrap());
+        let marker = tools.path().join("git-started");
+        let index_record = tools.path().join("index-path");
+        let mut session = Session::start(
+            repo.path(),
+            &[],
+            180,
+            &[
+                ("PATH", path),
+                (
+                    "SIDEDIFF_TEST_BLOCK",
+                    if aggregate_index {
+                        "update-index"
+                    } else {
+                        "diff"
+                    }
+                    .into(),
+                ),
+                ("SIDEDIFF_TEST_INDEX", index_record.clone()),
+                ("SIDEDIFF_TEST_MARKER", marker.clone()),
+                ("SIDEDIFF_TEST_REAL_GIT", real_git.trim().into()),
+            ],
+        );
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !marker.exists() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(marker.exists(), "the actual Git diff command did not start");
+        session.wait_for("Elapsed:");
+        session.wait_for("Enumerating changes");
+        session.send(b"\x03");
+        session.exits_successfully();
+        if aggregate_index {
+            let index = std::fs::read_to_string(index_record).unwrap();
+            let directory = Path::new(&index).parent().unwrap();
+            let remained = directory.exists();
+            if remained {
+                std::fs::remove_dir_all(directory).unwrap();
+            }
+            assert!(
+                !remained,
+                "temporary index left after cancellation: {index}"
+            );
+        }
     }
-    assert!(marker.exists(), "the actual Git diff command did not start");
-    session.wait_for("Elapsed:");
-    session.wait_for("Enumerating changes");
-    session.send(b"\x03");
-    session.exits_successfully();
+}
+
+#[test]
+fn binary_attributes_follow_real_paths_in_relative_and_subdirectory_views() {
+    let repo = Repo::new();
+    repo.write(".gitattributes", "sub/code.rs -diff\n");
+    repo.write("sub/code.rs", "fn main() { println!(\"before\"); }\n");
+    repo.commit();
+    repo.write(
+        "sub/code.rs",
+        "fn main() { println!(\"VISIBLE_CHANGE\"); }\n",
+    );
+    for (cwd, args) in [
+        (repo.path().to_path_buf(), vec!["--relative=sub"]),
+        (repo.path().join("sub"), vec![]),
+        (repo.path().join("sub"), vec!["--relative"]),
+    ] {
+        let mut session = Session::start(&cwd, &args, 180, &[]);
+        let screen = session.wait_for("Binary file changed");
+        assert!(!screen.contains("VISIBLE_CHANGE"), "{screen}");
+    }
 }
 
 #[test]
@@ -666,7 +719,7 @@ fn loading_profile_reports_filtered_revisions_as_json() {
     repo.write("first.rs", "fn value() -> u8 { 2 }\n");
     repo.write("second.txt", "new\n");
     repo.commit();
-    let output = Command::new(env!("CARGO_BIN_EXE_sidediff"))
+    let output = Command::new(sidediff_executable())
         .current_dir(repo.path())
         .args(["--profile", "--json", "HEAD~1", "HEAD", "--", "first.rs"])
         .output()
@@ -695,7 +748,7 @@ fn loading_profile_reports_filtered_revisions_as_json() {
 fn loading_profile_reports_omitted_content_and_errors() {
     let repo = Repo::dirty();
     let run = |args: &[&str]| {
-        Command::new(env!("CARGO_BIN_EXE_sidediff"))
+        Command::new(sidediff_executable())
             .current_dir(repo.path())
             .args(args)
             .env("SIDEDIFF_MAX_FILES", "0")
@@ -730,7 +783,7 @@ fn loading_profile_interrupt_returns_partial_json_and_reaps_git() {
     std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755)).unwrap();
     let mut paths = vec![tools.path().to_owned()];
     paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
-    let mut child = Command::new(env!("CARGO_BIN_EXE_sidediff"))
+    let mut child = Command::new(sidediff_executable())
         .current_dir(repo.path())
         .args(["--profile", "--json"])
         .env("PATH", std::env::join_paths(paths).unwrap())
@@ -1282,9 +1335,7 @@ fn relative_directory_completion_uses_repository_root() {
     repo.write("src/module/file.txt", "before\n");
     repo.commit();
     repo.write("src/module/file.txt", "COMPLETED_SCOPE_CONTENT\n");
-    let binary = std::env::var_os("SIDEDIFF_E2E_BIN")
-        .unwrap_or_else(|| env!("CARGO_BIN_EXE_sidediff").into());
-    let mut command = Command::new(binary);
+    let mut command = Command::new(sidediff_executable());
     for (key, _) in std::env::vars_os() {
         if key.to_string_lossy().starts_with("GIT_") {
             command.env_remove(key);

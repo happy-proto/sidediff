@@ -1,6 +1,7 @@
 //! 加载线程的子进程执行；退出 TUI 时回收正在运行的 Git。
 use std::{
     io::Read,
+    path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     sync::{
         Arc, Mutex,
@@ -99,10 +100,24 @@ pub fn output(command: &mut Command, cancellation: &Cancellation) -> Result<Outp
 pub struct Cancellation {
     flag: AtomicBool,
     children: Mutex<Vec<Arc<Mutex<GroupChild>>>>,
+    directories: Mutex<Vec<tempfile::TempDir>>,
 }
 impl Cancellation {
     pub fn load(&self, ordering: Ordering) -> bool {
         self.flag.load(ordering)
+    }
+    pub fn temporary_directory(self: &Arc<Self>) -> Result<TemporaryDirectory> {
+        let mut directories = self.directories.lock().unwrap();
+        if self.load(Ordering::Relaxed) {
+            bail!("diff loading cancelled");
+        }
+        let directory = tempfile::TempDir::new()?;
+        let path = directory.path().to_owned();
+        directories.push(directory);
+        Ok(TemporaryDirectory {
+            path,
+            cancellation: self.clone(),
+        })
     }
     pub fn cancel(&self) {
         self.flag.store(true, Ordering::Relaxed);
@@ -111,8 +126,30 @@ impl Cancellation {
             let _ = child.kill();
             let _ = child.wait();
         }
+        // 先回收使用 index 的 Git，再清理目录；不等待加载线程执行析构。
+        self.directories.lock().unwrap().clear();
     }
 }
+
+pub struct TemporaryDirectory {
+    path: PathBuf,
+    cancellation: Arc<Cancellation>,
+}
+impl TemporaryDirectory {
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+impl Drop for TemporaryDirectory {
+    fn drop(&mut self) {
+        self.cancellation
+            .directories
+            .lock()
+            .unwrap()
+            .retain(|directory| directory.path() != self.path);
+    }
+}
+
 struct Registered<'a> {
     cancellation: &'a Cancellation,
     child: Arc<Mutex<GroupChild>>,
