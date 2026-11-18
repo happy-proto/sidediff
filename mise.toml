@@ -29,7 +29,7 @@ description = "在 PTY 和 Ghostty 终端内核中验证屏幕颜色"
 run = "cargo nextest run --features ghostty-e2e --test ghostty_terminal_e2e --config-file .config/nextest.toml --cargo-quiet --status-level fail --final-status-level fail --failure-output final --success-output never --show-progress none --no-tests pass"
 
 [tasks.ghostty-e2e.tools]
-zig = "0.16.0"
+zig = "0.17.0"
 
 [tasks.install]
 description = "从当前源码安装 sidediff"

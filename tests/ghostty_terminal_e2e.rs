@@ -10,9 +10,9 @@ use std::{
 
 use libghostty_vt::{
     RenderState, Terminal,
+    point::{Coordinate, Point},
     render::{CellIterator, RowIterator},
     style::StyleColor,
-    terminal::{Point, PointCoordinate},
 };
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use tempfile::TempDir;
@@ -134,7 +134,7 @@ fn run_case(
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
         if let Some((x, y)) = find_screen_text(&terminal, needle)? {
-            let cell = terminal.grid_ref(Point::Active(PointCoordinate {
+            let cell = terminal.grid_ref(Point::Active(Coordinate {
                 x: x + cell_offset,
                 y,
             }))?;
